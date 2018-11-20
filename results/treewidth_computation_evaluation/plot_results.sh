@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python -m evaluation_acm_ccr_2019.cli treewidth_plot_computation_results treewidth_computation_random_graphs_5_50_0.01_0.5_1000.yml treewidth_computation_random_graphs_5_50_0.01_0.5_1000_results_aggregated.pickle
