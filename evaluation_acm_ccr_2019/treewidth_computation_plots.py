@@ -4,6 +4,7 @@ from time import gmtime, strftime, time
 
 import matplotlib.colors
 import matplotlib.patches as mpatches
+import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
@@ -600,6 +601,10 @@ class DecompositionRuntimePlotter(AbstractPlotter):
                 color="k",
                 label="median" if p == 50 else None
             )
+
+            line[0].set_path_effects([path_effects.Stroke(linewidth=linewidths[i] + 0.5, foreground='w'),
+                                      path_effects.Normal()])
+
             if i < len(percentiles) - 1:
                 if color_values:
                     c = plt.cm.inferno(color_values[i])
