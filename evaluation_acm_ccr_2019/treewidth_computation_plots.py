@@ -2,6 +2,8 @@ import os
 import pickle
 from time import gmtime, strftime, time
 
+import matplotlib.colors
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
@@ -20,6 +22,7 @@ FIGSIZE = (5, 3.5)
 PLOT_TITLE_FONT_SIZE = 17  # for axis titles
 X_AXIS_LABEL_FONT_SIZE = 16
 Y_AXIS_LABEL_FONT_SIZE = 16
+LEGEND_LABEL_FONT_SIZE = 9
 
 # TICK PARAMETERS:
 TICK_LABEL_FONT_SIZE = 12
@@ -30,12 +33,13 @@ DEFAULT_MAJOR_TICK_PARAMS = dict(
     which="major",
     length=8.0,
     width=1.5,
-    grid_linewidth=1,
+    grid_linewidth=0.33,
     grid_color="k",
-    grid_alpha=0.5,
-    grid_linestyle="dashed",
+    grid_alpha=0.7,
+    grid_linestyle=":",
     labelsize=TICK_LABEL_FONT_SIZE,
 )
+
 DEFAULT_MINOR_TICK_PARAMS = dict(
     which="minor",
     length=4.0,
@@ -79,7 +83,7 @@ heatmap_specification_avg_treewidth = dict(
     filename="treewidth_avg",
     vmin=1.0,
     vmax=40.0,
-    colorbar_ticks=[1,5,10,20,40],
+    colorbar_ticks=[1, 5, 10, 20, 40],
     cmap="inferno",
     plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Average,
     lookup_function=lambda tw_result: tw_result.treewidth,
@@ -167,7 +171,7 @@ class BoxplotPlotType(object):
 
 boxplot_metric_specification_runtime = dict(
     name="Runtime",
-    filename="runtime",
+    filename="runtime_boxplot",
     y_axis_title="Runtime",
     use_log_scale=True,
     plot_type=BoxplotPlotType.Simple_Treewidth_Evaluation_Boxplot,
@@ -211,6 +215,61 @@ global_boxplot_axes_specfications = [
     boxplot_axis_specification_treewidth,
     boxplot_axis_specification_num_nodes,
     boxplot_axis_specification_probability,
+]
+
+"""  
+Decomposition Runtime Plots: define plot types, metric specifications and axes specifications analogously to Boxplots.
+"""
+
+
+class DecompositionRuntimePlotType(object):
+    Simple_Treewidth_Evaluation_DecompositionRuntimePlot = 0
+
+
+decomposition_runtime_plot_metric_specification_runtime = dict(
+    name="Runtime",
+    filename="decomposition_runtime",
+    y_axis_title="Runtime",
+    use_log_scale=True,
+    plot_type=DecompositionRuntimePlotType.Simple_Treewidth_Evaluation_DecompositionRuntimePlot,
+    lookup_function=lambda tw_result: tw_result.runtime_algorithm,
+    percentiles=[0, 1, 25, 50, 75, 99, 100],
+    linewidths=[0.25, 0.5, 0.5, 2, 0.5, 0.5, 0.25],
+    color_values=[0.3, 0.6, 0.9, 0.9, 0.6, 0.3],
+)
+
+global_decomposition_runtime_plot_specfications = [
+    decomposition_runtime_plot_metric_specification_runtime,
+]
+
+decomposition_runtime_plot_axis_specification_treewidth = dict(
+    x_axis_title="Treewidth",
+    x_axis_ticks=range(0, 50, 5),
+    filename="treewidth",
+    x_axis_function=lambda tw_result: tw_result.treewidth,
+    plot_title="Decomposition Runtime"
+)
+
+decomposition_runtime_plot_axis_specification_num_nodes = dict(
+    x_axis_title="Number of Nodes",
+    x_axis_ticks=[5, 10, 20, 30, 40, 50],
+    filename="num_nodes",
+    x_axis_function=lambda tw_result: tw_result.num_nodes,
+    plot_title="undefined"
+)
+
+decomposition_runtime_plot_axis_specification_probability = dict(
+    x_axis_title="Edge Connection Probability (%)",
+    x_axis_ticks=[1, 10, 20, 30, 40, 50],
+    filename="probability",
+    x_axis_function=lambda tw_result: tw_result.probability,
+    plot_title="undefined"
+)
+
+global_decomposition_runtime_plot_axes_specfications = [
+    decomposition_runtime_plot_axis_specification_treewidth,
+    decomposition_runtime_plot_axis_specification_num_nodes,
+    decomposition_runtime_plot_axis_specification_probability,
 ]
 
 
@@ -443,7 +502,211 @@ class SingleBoxplotPlotter(AbstractPlotter):
                 solution_count_string = "{} values per box".format(min_number_of_observed_values)
             else:
                 solution_count_string = "between {} and {} values per box".format(min_number_of_observed_values,
-                                                                              max_number_of_observed_values)
+                                                                                  max_number_of_observed_values)
+        return solution_count_string
+
+
+class DecompositionRuntimePlotter(AbstractPlotter):
+    def __init__(self,
+                 output_path,
+                 output_filetype,
+                 experiment_parameters,
+                 data_dict,
+                 decomposition_runtime_plot_type,
+                 list_of_axes_specifications=tuple(global_decomposition_runtime_plot_axes_specfications),
+                 list_of_metric_specifications=None,
+                 show_plot=False,
+                 save_plot=True,
+                 overwrite_existing_files=False,
+                 paper_mode=True,
+                 sampling_rate=None,
+                 read_pickle=True,
+                 write_pickle=True,
+                 ):
+        super(DecompositionRuntimePlotter, self).__init__(output_path, output_filetype,
+                                                          experiment_parameters, data_dict,
+                                                          show_plot, save_plot,
+                                                          overwrite_existing_files, paper_mode)
+        self.plot_type = decomposition_runtime_plot_type
+
+        if not list_of_axes_specifications:
+            raise RuntimeError("Axes need to be provided.")
+        self.list_of_axes_specifications = list_of_axes_specifications
+
+        if not list_of_metric_specifications:
+            self.list_of_metric_specifications = [
+                decomposition_runtime_plot_metric_specification_runtime,
+            ]
+        else:
+            self.list_of_metric_specifications = list_of_metric_specifications
+        if sampling_rate is None:
+            sampling_rate = 1
+        self.sampling_rate = sampling_rate
+        print "Sampling every {} values per parameter combination (at least one)".format(self.sampling_rate)
+        self.read_pickle = read_pickle
+        self.write_pickle = write_pickle
+
+    def plot_figure(self):
+        for axes_specification in self.list_of_axes_specifications:
+            for metric_specfication in self.list_of_metric_specifications:
+                self.plot_single_decomposition_runtime(metric_specfication, axes_specification)
+
+    def plot_single_decomposition_runtime(self,
+                                          decomposition_runtime_metric_specification,
+                                          decomposition_runtime_axes_specification):
+
+        base_filename = "{}__by__{}".format(decomposition_runtime_metric_specification["filename"],
+                                            decomposition_runtime_axes_specification["filename"])
+        output_path, filename = self._construct_output_path_and_filename(base_filename)
+
+        logger.debug("output_path is {};\t filename is {}".format(output_path, filename))
+
+        if not self.overwrite_existing_files and os.path.exists(filename):
+            logger.info("Skipping generation of {} as this file already exists".format(filename))
+            return
+
+        values_dict = self._get_values_dict(base_filename,
+                                            decomposition_runtime_axes_specification,
+                                            decomposition_runtime_metric_specification)
+
+        fig, ax = plt.subplots(figsize=FIGSIZE)
+        if self.paper_mode:
+            print decomposition_runtime_axes_specification
+            ax.set_title(decomposition_runtime_axes_specification['plot_title'], fontsize=PLOT_TITLE_FONT_SIZE)
+        else:
+            title = decomposition_runtime_metric_specification['name'] + "\n"
+            title += self._get_sol_count_string(values_dict)
+            ax.set_title(title, fontsize=PLOT_TITLE_FONT_SIZE)
+
+        sorted_keys = sorted(values_dict.keys())
+        percentiles = decomposition_runtime_metric_specification["percentiles"]
+        linewidths = decomposition_runtime_metric_specification.get("linewidths",
+                                                                    [0.5] * len(percentiles))
+        color_values = decomposition_runtime_metric_specification.get("color_values")
+
+        lines = np.zeros((len(percentiles), len(sorted_keys)))
+        for i, key in enumerate(sorted_keys):
+            lines[:, i] = np.percentile(values_dict[key], percentiles)
+
+        t_start = time()
+        handles = []
+        median_legend_handle = None
+        for i, p in enumerate(percentiles):
+            line = ax.plot(
+                sorted_keys,
+                lines[i][:],
+                linewidth=linewidths[i],
+                color="k",
+                label="median" if p == 50 else None
+            )
+            if i < len(percentiles) - 1:
+                if color_values:
+                    c = plt.cm.inferno(color_values[i])
+                else:
+                    c = plt.cm.inferno(0.01 * p)
+                if p == 50:
+                    median_legend_handle = line[0]
+                    handles[-1].set_label("{}% - {}%".format(percentiles[i - 1], percentiles[i + 1]))
+                else:
+                    handles.append(mpatches.Patch(color=c, label="{}% - {}%".format(p, percentiles[i + 1])))
+                ax.fill_between(
+                    sorted_keys,
+                    lines[i][:],
+                    lines[i + 1][:],
+                    facecolor=matplotlib.colors.to_rgba(c, 0.8),  # apply alpha only to facecolor
+                )
+        handles.reverse()
+        if median_legend_handle:
+            handles.append(median_legend_handle)
+        ax.legend(handles=handles, fontsize=LEGEND_LABEL_FONT_SIZE, loc=2, title="percentiles", handletextpad=.35,
+                  borderaxespad=0.175, borderpad=0.2, handlelength=1.75)
+
+        print "Plotting:", time() - t_start, "seconds"
+
+        if "x_axis_ticks" in decomposition_runtime_axes_specification:
+            ax.set_xticks(decomposition_runtime_axes_specification["x_axis_ticks"])
+            ax.set_xticklabels(map(str, decomposition_runtime_axes_specification["x_axis_ticks"]))
+
+        if decomposition_runtime_metric_specification.get("use_log_scale", False):
+            plt.yscale('log')
+            plt.autoscale(True)
+        ax.tick_params(axis="x", **DEFAULT_MAJOR_TICK_PARAMS)
+        ax.tick_params(axis="y", **DEFAULT_MAJOR_TICK_PARAMS)
+        ax.tick_params(axis="x", **DEFAULT_MINOR_TICK_PARAMS)
+        ax.tick_params(axis="y", **DEFAULT_MINOR_TICK_PARAMS)
+
+        ax.grid()  # to change grid style parameters, modify the BOXPLOT_..._TICK_PARAMS dicts defined at the top of the file
+
+        ax.set_xlabel(decomposition_runtime_axes_specification['x_axis_title'], fontsize=X_AXIS_LABEL_FONT_SIZE)
+        ax.set_ylabel(decomposition_runtime_metric_specification['y_axis_title'], fontsize=Y_AXIS_LABEL_FONT_SIZE)
+
+        self._show_and_or_save_plots(output_path, filename)
+
+    def _get_values_dict(self, base_filename,
+                         decomposition_runtime_axes_specification,
+                         decomposition_runtime_metric_specification):
+        values_dict = self._read_data_from_pickle_if_allowed(base_filename)
+        if values_dict is None:
+            values_dict = self._process_data(decomposition_runtime_axes_specification,
+                                             decomposition_runtime_metric_specification)
+            data_was_read_from_pickle = False
+        else:
+            data_was_read_from_pickle = True
+        if self.write_pickle and not data_was_read_from_pickle:  # no need to write same data back to pickle file
+            self._write_data_to_pickle(base_filename, values_dict)
+        return values_dict
+
+    def _read_data_from_pickle_if_allowed(self, base_filename):
+        values_dict = None
+        if self.read_pickle:
+            plot_data_pickle_file = self._get_path_to_pickle_file(base_filename)
+            if os.path.exists(plot_data_pickle_file):
+                print "Reading plot data pickle from {}".format(plot_data_pickle_file)
+                with open(plot_data_pickle_file, "r") as f:
+                    values_dict = pickle.load(f)
+        return values_dict
+
+    def _write_data_to_pickle(self, base_filename, values_dict):
+        plot_data_pickle_file = self._get_path_to_pickle_file(base_filename)
+        parent_dir = os.path.dirname(plot_data_pickle_file)
+        if not os.path.exists(parent_dir):
+            os.makedirs(parent_dir)
+        with open(plot_data_pickle_file, "w") as f:
+            print "Writing pickle to {}".format(plot_data_pickle_file)
+            pickle.dump(values_dict, f)
+
+    def _get_path_to_pickle_file(self, base_filename):
+        pickle_filename = "{}__sample_rate_{}.pickle".format(base_filename, self.sampling_rate)
+        return os.path.join(os.path.normpath(OUTPUT_PATH), "data_pickles", pickle_filename)
+
+    def _process_data(self, decomposition_runtime_axes_specification, boxplot_metric_specification):
+        t_start = time()
+        values_dict = {}
+        lookup_function = boxplot_metric_specification["lookup_function"]
+        x_axis_function = decomposition_runtime_axes_specification["x_axis_function"]
+        for num_nodes, prob_results_dict in self.data_dict.iteritems():
+            for prob, results in prob_results_dict.iteritems():
+                # assert len(results) == self.experiment_parameters["scenario_repetition"]  # sanity check for now
+                logger.debug("values are {}".format(values_dict))
+                for result in results[::self.sampling_rate]:
+                    x_val = x_axis_function(result)
+                    if x_val not in values_dict:
+                        values_dict[x_val] = []
+                    values_dict[x_val].append(lookup_function(result))
+        print "DecompositionRuntime data processing:", time() - t_start, "seconds"
+        return values_dict
+
+    def _get_sol_count_string(self, values_dict):
+        lens = map(len, values_dict.values())
+        min_number_of_observed_values = min(lens)
+        max_number_of_observed_values = max(lens)
+        solution_count_string = ""
+        if not self.paper_mode:
+            if min_number_of_observed_values == max_number_of_observed_values:
+                solution_count_string = "{} values per position".format(min_number_of_observed_values)
+            else:
+                solution_count_string = "between {} and {} values per position".format(min_number_of_observed_values,
+                                                                                       max_number_of_observed_values)
         return solution_count_string
 
 
@@ -683,9 +946,28 @@ def plot_boxplots(parameters, data):
     baseline_plotter.plot_figure()
 
 
+def plot_decomposition_runtime_plots(parameters, data):
+    baseline_plotter = DecompositionRuntimePlotter(
+        output_path=OUTPUT_PATH,
+        output_filetype=OUTPUT_FILETYPE,
+        experiment_parameters=parameters,
+        decomposition_runtime_plot_type=DecompositionRuntimePlotType.Simple_Treewidth_Evaluation_DecompositionRuntimePlot,
+        data_dict=data,
+        show_plot=False,
+        save_plot=True,
+        overwrite_existing_files=True,
+        paper_mode=True,
+        sampling_rate=1,
+        read_pickle=True,
+        write_pickle=True
+    )
+    baseline_plotter.plot_figure()
+
+
 def make_plots(parameters_file, results_pickle):
     parameters = yaml.load(parameters_file)
     results = pickle.load(results_pickle)
 
     plot_heatmaps(parameters, results)
+    plot_decomposition_runtime_plots(parameters, results)
     plot_boxplots(parameters, results)
