@@ -242,11 +242,5 @@ def evaluate_results(lp_sep_dynvmp_pickle_name,
                                                      output_filetype=output_filetype,
                                                      papermode=papermode)
 
-@cli.command()
-@click.argument('comparison_pickle')
-def plot_comparison_separation_dynvmp_vs_lp(comparison_pickle):
-    sep_dynvmp_vs_lp.plot_comparison_separation_dynvmp_vs_lp(comparison_pickle)
-
-
 if __name__ == '__main__':
     cli()

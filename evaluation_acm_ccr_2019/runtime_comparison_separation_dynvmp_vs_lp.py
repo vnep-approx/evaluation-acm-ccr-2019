@@ -315,8 +315,8 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
     colors = ['g', 'b','r','k']
     linestyles = ['-', ':']
 
-    with_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[0], label=r"incl. $\mathcal{T}_r$ comp.")
-    wo_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[1], label=r"excl. $\mathcal{T}_r$ comp.")
+    with_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[0], label=r"incl. $\mathcal{T}_r$ comp.", linewidth=2)
+    wo_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[1], label=r"excl. $\mathcal{T}_r$ comp.", linewidth=2.75)
 
 
     second_legend_handlers = []
@@ -347,9 +347,17 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
         speedup_real = sorted(speedups_real)
         speedup_wotd = sorted(speedups_wotd)
 
-        logger.info("Relative speedups for requests {}:\nmean: {}\nvalues: {}".format(number_of_requests,
-                                                                        np.mean(relative_speedup_sep_lp_wo_td),
-                                                                                      relative_speedup_sep_lp_wo_td))
+
+        logger.info("Relative when excluding tree decomposition computation {} requests:\n"
+                    "mean: {}\n".format(number_of_requests,
+                                        np.mean(relative_speedup_sep_lp_wo_td)))
+
+
+        logger.info("Relative speedup compared to cactus LP for {} requests:\n"
+                    "with tree decomposition (mean): {}\n"
+                    "without tree decomposition (mean): {}".format(number_of_requests,
+                                                                   np.mean(speedups_real),
+                                                                   np.mean(speedups_wotd)))
 
 
 
@@ -369,13 +377,15 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
         speedup_wotd.append(max_observed_value)
         speedup_wotd.insert(0, 0.5)
         ax.semilogx(speedup_wotd, yvals, color=colors[request_number_index], linestyle=linestyles[1],
-                    linewidth=2, alpha=0.75)
+                    linewidth=2.75, alpha=0.75)
 
         second_legend_handlers.append(matplotlib.lines.Line2D([], [], color=colors[request_number_index], alpha=0.75, linestyle="-",
-                                                              label=("{}".format(number_of_requests)).ljust(3)))
+                                                              label=("{}".format(number_of_requests)).ljust(3), linewidth=2))
 
     first_legend = plt.legend(handles=[with_td, wo_td], loc=4, fontsize=14, title="", handletextpad=.35,
                               borderaxespad=0.1, borderpad=0.2, handlelength=0.6666)
+    first_legend.get_frame().set_alpha(1.0)
+    first_legend.get_frame().set_facecolor("#FFFFFF")
     plt.setp(first_legend.get_title(), fontsize=14)
     plt.gca().add_artist(first_legend)
     # ax.tick_params(labelright=True)
@@ -387,13 +397,16 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
     #plt.gca().add_artist(second_legend)
     plt.setp(second_legend.get_title(), fontsize=14)
 
+    second_legend.get_frame().set_alpha(1.0)
+    second_legend.get_frame().set_facecolor("#FFFFFF")
+
     # first_legend = plt.legend(title="Bound($\mathrm{MIP}_{\mathrm{MCF}})$", handles=root_legend_handlers, loc=(0.225,0.0125), fontsize=14, handletextpad=0.35, borderaxespad=0.175, borderpad=0.2)
     # plt.setp(first_legend.get_title(), fontsize='15')
     # plt.gca().add_artist(first_legend)
     # plt.setp("TITLE", fontsize='15')
 
     ax.set_title("LP Runtime Comparison", fontsize=17)
-    ax.set_xlabel(r"speedup: time($\mathsf{LP}_{\mathsf{Cactus}}$) / time($\mathsf{LP}_{\mathsf{Dyn-VMP}}$)",
+    ax.set_xlabel(r"speedup: time($\mathsf{LP}_{\mathsf{Cactus}}$) / time($\mathsf{LP}_{\mathsf{DynVMP}}$)",
                   fontsize=16)
     ax.set_ylabel("ECDF", fontsize=16)
 
