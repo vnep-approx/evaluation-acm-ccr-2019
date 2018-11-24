@@ -235,7 +235,7 @@ decomposition_runtime_plot_metric_specification_runtime = dict(
     lookup_function=lambda tw_result: tw_result.runtime_algorithm,
     percentiles=[0, 1, 25, 50, 75, 99, 100],
     linewidths=[0.25, 0.5, 0.5, 2, 0.5, 0.5, 0.25],
-    color_values=[0.3, 0.6, 0.9, 0.9, 0.6, 0.3],
+    color_values=[0.9, 0.6, 0.3, 0.3, 0.6, 0.9],
 )
 
 global_decomposition_runtime_plot_specfications = [
@@ -457,6 +457,7 @@ class SingleBoxplotPlotter(AbstractPlotter):
         values_dict = None
         if self.read_pickle:
             plot_data_pickle_file = self._get_path_to_pickle_file(base_filename)
+            print("Trying to read file: {}".format(plot_data_pickle_file))
             if os.path.exists(plot_data_pickle_file):
                 print "Reading plot data pickle from {}".format(plot_data_pickle_file)
                 with open(plot_data_pickle_file, "r") as f:
@@ -660,6 +661,7 @@ class DecompositionRuntimePlotter(AbstractPlotter):
         values_dict = None
         if self.read_pickle:
             plot_data_pickle_file = self._get_path_to_pickle_file(base_filename)
+            print("Trying to read file: {}".format(plot_data_pickle_file))
             if os.path.exists(plot_data_pickle_file):
                 print "Reading plot data pickle from {}".format(plot_data_pickle_file)
                 with open(plot_data_pickle_file, "r") as f:
