@@ -312,10 +312,13 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
 
     fix, ax = plt.subplots(figsize=(5, 3.5))
 
-    colors = ['g', 'b','r','k']
-    linestyles = ['-', ':']
+    def get_color(value):
+        return plt.cm.inferno(value)
 
-    with_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[0], label=r"incl. $\mathcal{T}_r$ comp.", linewidth=2)
+    colors = [get_color(0.75), get_color(0.55),get_color(0.35),get_color(0.0)]
+    linestyles = ['-', '--']
+
+    with_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[0], label=r"incl.  $\mathcal{T}_r$ comp.", linewidth=2)
     wo_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[1], label=r"excl. $\mathcal{T}_r$ comp.", linewidth=2.75)
 
 
@@ -368,7 +371,7 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
         speedup_real.append(max_observed_value)
         speedup_real.insert(0, 0.5)
         ax.semilogx(speedup_real, yvals, color=colors[request_number_index], linestyle=linestyles[0],
-                    linewidth=2, alpha=0.75)
+                    linewidth=2.75, alpha=1)
 
         max_observed_value = np.maximum(max_observed_value, speedup_wotd[-1])
         yvals = np.arange(1, len(speedup_wotd) + 1) / float(len(speedup_wotd))
@@ -377,25 +380,25 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
         speedup_wotd.append(max_observed_value)
         speedup_wotd.insert(0, 0.5)
         ax.semilogx(speedup_wotd, yvals, color=colors[request_number_index], linestyle=linestyles[1],
-                    linewidth=2.75, alpha=0.75)
+                    linewidth=2.75, alpha=1)
 
-        second_legend_handlers.append(matplotlib.lines.Line2D([], [], color=colors[request_number_index], alpha=0.75, linestyle="-",
-                                                              label=("{}".format(number_of_requests)).ljust(3), linewidth=2))
+        second_legend_handlers.append(matplotlib.lines.Line2D([], [], color=colors[request_number_index], alpha=1, linestyle="-",
+                                                              label=("{}".format(number_of_requests)).ljust(3), linewidth=2.5))
 
-    first_legend = plt.legend(handles=[with_td, wo_td], loc=4, fontsize=14, title="", handletextpad=.35,
-                              borderaxespad=0.1, borderpad=0.2, handlelength=0.6666)
+    first_legend = plt.legend(handles=[with_td, wo_td], loc=4, fontsize=11, title="", handletextpad=.35,
+                              borderaxespad=0.1, borderpad=0.2, handlelength=2.5)
     first_legend.get_frame().set_alpha(1.0)
     first_legend.get_frame().set_facecolor("#FFFFFF")
-    plt.setp(first_legend.get_title(), fontsize=14)
+    plt.setp(first_legend.get_title(), fontsize=12)
     plt.gca().add_artist(first_legend)
     # ax.tick_params(labelright=True)
 
     # print second_legend_handlers
 
-    second_legend = plt.legend(handles=second_legend_handlers, loc=2, fontsize=14, title="#requests", handletextpad=.35,
-                               borderaxespad=0.175, borderpad=0.2, handlelength=1.75)
+    second_legend = plt.legend(handles=second_legend_handlers, loc=2, fontsize=11, title="#requests", handletextpad=.35,
+                               borderaxespad=0.175, borderpad=0.2, handlelength=2)
     #plt.gca().add_artist(second_legend)
-    plt.setp(second_legend.get_title(), fontsize=14)
+    plt.setp(second_legend.get_title(), fontsize=12)
 
     second_legend.get_frame().set_alpha(1.0)
     second_legend.get_frame().set_facecolor("#FFFFFF")
@@ -413,9 +416,9 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
     ax.set_xlim(0.4, max_observed_value * 1.15)
 
     for tick in ax.xaxis.get_major_ticks():
-        tick.label.set_fontsize(15.5)
+        tick.label.set_fontsize(13)
     for tick in ax.yaxis.get_major_ticks():
-        tick.label.set_fontsize(15.5)
+        tick.label.set_fontsize(13)
 
     ax.set_xticks([0.5, 1, 5, 20, 60, ], minor=False)
     ax.set_xticks([2, 3, 4, 10, 30, 40], minor=True)

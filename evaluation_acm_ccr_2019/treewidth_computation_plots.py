@@ -23,10 +23,12 @@ FIGSIZE = (5, 3.5)
 PLOT_TITLE_FONT_SIZE = 17  # for axis titles
 X_AXIS_LABEL_FONT_SIZE = 16
 Y_AXIS_LABEL_FONT_SIZE = 16
-LEGEND_LABEL_FONT_SIZE = 9
+TICK_LABEL_SIZE = 15
+LEGEND_LABEL_FONT_SIZE = 11
+LEGEND_TITLE_FONT_SIZE = 12
 
 # TICK PARAMETERS:
-TICK_LABEL_FONT_SIZE = 12
+TICK_LABEL_FONT_SIZE = 13
 COLORBAR_TICK_FONT_SIZE = TICK_LABEL_FONT_SIZE
 
 # list of possible parameters: https://matplotlib.org/api/_as_gen/matplotlib.axes.Axes.tick_params.html
@@ -230,7 +232,7 @@ class DecompositionRuntimePlotType(object):
 decomposition_runtime_plot_metric_specification_runtime = dict(
     name="Runtime",
     filename="decomposition_runtime",
-    y_axis_title="Runtime",
+    y_axis_title="Runtime [s]",
     use_log_scale=True,
     plot_type=DecompositionRuntimePlotType.Simple_Treewidth_Evaluation_DecompositionRuntimePlot,
     lookup_function=lambda tw_result: tw_result.runtime_algorithm,
@@ -594,12 +596,17 @@ class DecompositionRuntimePlotter(AbstractPlotter):
         handles = []
         median_legend_handle = None
         for i, p in enumerate(percentiles):
+            sorted_keys = sorted(values_dict.keys())
+            if p == 50:
+                sorted_keys[0] += 0.15
+                sorted_keys[-1] -= 0.15
             line = ax.plot(
                 sorted_keys,
                 lines[i][:],
                 linewidth=linewidths[i],
                 color="k",
-                label="median" if p == 50 else None
+                label="median" if p == 50 else None,
+                solid_capstyle='round'
             )
 
             line[0].set_path_effects([path_effects.Stroke(linewidth=linewidths[i] + 0.5, foreground='w'),
@@ -622,10 +629,18 @@ class DecompositionRuntimePlotter(AbstractPlotter):
                     facecolor=matplotlib.colors.to_rgba(c, 0.8),  # apply alpha only to facecolor
                 )
         handles.reverse()
-        if median_legend_handle:
-            handles.append(median_legend_handle)
-        ax.legend(handles=handles, fontsize=LEGEND_LABEL_FONT_SIZE, loc=2, title="percentiles", handletextpad=.35,
-                  borderaxespad=0.175, borderpad=0.2, handlelength=1.75)
+        #if median_legend_handle:
+        #    handles.append(median_legend_handle)
+
+        leg = ax.legend(handles=handles, fontsize=LEGEND_LABEL_FONT_SIZE, loc=2, title="percentiles", handletextpad=.35,
+                        borderaxespad=0.175, borderpad=0.2, handlelength=1.75)
+
+        plt.setp(leg.get_title(), fontsize=LEGEND_TITLE_FONT_SIZE)
+        plt.gca().add_artist(leg)
+
+        sec_leg = ax.legend(handles=[median_legend_handle], fontsize=LEGEND_LABEL_FONT_SIZE, title="", handletextpad=.35,
+                        borderaxespad=0.175, borderpad=0.2, handlelength=1.75, frameon=False)
+
 
         print "Plotting:", time() - t_start, "seconds"
 
@@ -640,6 +655,13 @@ class DecompositionRuntimePlotter(AbstractPlotter):
         ax.tick_params(axis="y", **DEFAULT_MAJOR_TICK_PARAMS)
         ax.tick_params(axis="x", **DEFAULT_MINOR_TICK_PARAMS)
         ax.tick_params(axis="y", **DEFAULT_MINOR_TICK_PARAMS)
+
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(TICK_LABEL_FONT_SIZE)
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(TICK_LABEL_FONT_SIZE)
+
+        #plt.xlim(-5,41)
 
         ax.grid()  # to change grid style parameters, modify the BOXPLOT_..._TICK_PARAMS dicts defined at the top of the file
 
@@ -878,6 +900,7 @@ class SingleHeatmapPlotter(AbstractPlotter):
                 tick_labels = [str(tick).ljust(3) for tick in ticks]
                 cbar.set_ticks(ticks)
                 cbar.set_ticklabels(tick_labels)
+                cbar.ax.tick_params(labelsize=TICK_LABEL_FONT_SIZE)
             else:
                 print "No colorbar tick labels were specified for {}".format(heatmap_metric_specification["name"])
             # for label in cbar.ax.get_yticklabels():
@@ -898,9 +921,10 @@ class SingleHeatmapPlotter(AbstractPlotter):
             tick_locations = np.array(tick_locations) + 0.5
             ax.set_yticks(tick_locations, minor=False)
             y_labels = map(heatmap_axes_specification["y_axis_tick_formatting"], heatmap_axes_specification["y_axis_ticks"])
-            ax.set_yticklabels(y_labels, minor=False)
+            ax.set_yticklabels(y_labels, minor=False, fontsize=TICK_LABEL_FONT_SIZE)
         else:
             ax.set_yticks(np.arange(X.shape[0]) + 0.5, minor=False)
+
 
         # column_labels = yaxis_parameters
         ax.set_xlabel(heatmap_axes_specification['x_axis_title'], fontsize=X_AXIS_LABEL_FONT_SIZE)
