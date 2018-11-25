@@ -639,7 +639,7 @@ class DecompositionRuntimePlotter(AbstractPlotter):
         plt.gca().add_artist(leg)
 
         sec_leg = ax.legend(handles=[median_legend_handle], fontsize=LEGEND_LABEL_FONT_SIZE, title="", handletextpad=.35,
-                        borderaxespad=0.175, borderpad=0.2, handlelength=1.75, frameon=False)
+                        borderaxespad=0.175, borderpad=0.2, handlelength=1.75, frameon=True)
 
 
         print "Plotting:", time() - t_start, "seconds"
