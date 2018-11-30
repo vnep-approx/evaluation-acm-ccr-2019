@@ -409,7 +409,7 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
     # plt.setp("TITLE", fontsize='15')
 
     ax.set_title("LP Runtime Comparison", fontsize=17)
-    ax.set_xlabel(r"speedup: time($\mathsf{LP}_{\mathsf{Cactus}}$) / time($\mathsf{LP}_{\mathsf{DynVMP}}$)",
+    ax.set_xlabel(r"Speedup: Time($\mathsf{LP}_{\mathsf{Cactus}}$) / Time($\mathsf{LP}_{\mathsf{DynVMP}}$)",
                   fontsize=16)
     ax.set_ylabel("ECDF", fontsize=16)
 
