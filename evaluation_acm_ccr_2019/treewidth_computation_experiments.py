@@ -67,9 +67,9 @@ class SimpleTreeDecompositionExperiment(object):
         ]
 
     def start_experiments(self, scenario_parameter_space):
-        repetition = 1
+        number_of_repetitions = 1
         if 'scenario_repetition' in scenario_parameter_space:
-            repetition = scenario_parameter_space['scenario_repetition']
+            number_of_repetitions = scenario_parameter_space['scenario_repetition']
             del scenario_parameter_space['scenario_repetition']
 
         random_seed_base = 0
@@ -85,7 +85,7 @@ class SimpleTreeDecompositionExperiment(object):
                 self.threads,
                 scenario_parameter_space,
                 random_seed_base + process_index,
-                repetition,
+                number_of_repetitions,
                 self.output_files[process_index],
             )) for process_index in range(self.threads)]
 
@@ -133,14 +133,14 @@ def execute_single_experiment(process_index, num_processes, parameter_space, ran
 
     logger = util.get_logger("worker_{}_pid_{}".format(process_index, os.getpid()), propagate=False, make_file=True)
 
-    for param_index, params in enumerate(itertools.product(
+    for repetition_index, params in enumerate(itertools.product(
             num_nodes_list,
             connection_probabilities_list,
             range(repetitions)
     )):
-        if param_index % num_processes == process_index:
+        if repetition_index % num_processes == process_index:
             num_nodes, prob, repetition_index = params
-            logger.info("Processing graph {} with {} nodes and {} prob, rep {}".format(param_index, num_nodes, prob, repetition_index))
+            logger.info("Processing graph {} with {} nodes and {} prob, rep {}".format(repetition_index, num_nodes, prob, repetition_index))
             gen_time_start = time.time()
             graph = graph_generator.generate_graph(num_nodes, prob)
             gen_time = time.time() - gen_time_start
@@ -151,20 +151,20 @@ def execute_single_experiment(process_index, num_processes, parameter_space, ran
             assert tree_decomp.is_tree_decomposition(graph)
 
             result = TreeDecompositionAlgorithmResult(
-                parameter_index=param_index,
                 num_nodes=num_nodes,
-                probability=prob,
-                num_edges=len(graph.edges),
+                edge_probability=prob,
+                repetition_index=repetition_index,
+                undirected_graph=graph,
                 treewidth=tree_decomp.width,
-                runtime_algorithm=algorithm_time,
+                runtime_treewidth_computation=algorithm_time,
             )
             logger.info("Result: {}".format(result))
 
-            del graph
-            del tree_decomp
-
             with open(out_file, "a") as f:
                 pickle.dump(result, f)
+
+            del graph
+            del tree_decomp
 
 
 class SimpleRandomGraphGenerator(object):
@@ -184,20 +184,20 @@ class SimpleRandomGraphGenerator(object):
 
     def generate_graph(self, number_of_nodes, connection_probability):
         name = "req"
-        req = datamodel.Graph(name)
+        undirected_graph = datamodel.UndirectedGraph(name)
 
         # create nodes
         for i in xrange(1, number_of_nodes + 1):
-            req.add_node(str(i))
+            undirected_graph.add_node(str(i))
 
         # create edges
-        for i in req.nodes:
-            for j in req.nodes:
-                if i == j:
-                    continue
+        for i in undirected_graph.nodes:
+            for j in undirected_graph.nodes:
+                if int(j) <= int(i):
+                    continue #as we are undirected
                 if random.random() <= connection_probability:
-                    req.add_edge(i, j)
-        return req
+                    undirected_graph.add_edge(i, j)
+        return undirected_graph
 
 
 class TreeDecompositionAlgorithmResult(object):
@@ -206,26 +206,29 @@ class TreeDecompositionAlgorithmResult(object):
     '''
     def __init__(
             self,
-            parameter_index,
             num_nodes,
-            probability,
-            num_edges,
+            edge_probability,
+            repetition_index,
+            undirected_graph,
             treewidth,
-            runtime_algorithm,
+            runtime_treewidth_computation,
     ):
-        self.parameter_index = parameter_index
-        self.treewidth = treewidth
-        self.probability = probability
+        #the 3 generation parameters:
         self.num_nodes = num_nodes
-        self.num_edges = num_edges
-        self.runtime_algorithm = runtime_algorithm
+        self.edge_probability = edge_probability
+        self.repetition_index = repetition_index
+
+        #the randomly generated graph and its treewidth and the runtime for the tree decomposition
+        self.undirected_graph = undirected_graph
+        self.treewidth = treewidth
+        self.runtime_treewidth_computation = runtime_treewidth_computation
 
     def __str__(self):
-        return "Result {}: num_nodes {} , probability {}, {} edges, Treewidth {}, Decomposition runtime {} s".format(
-            self.parameter_index,
+        return "Tree Decomposition Result for |V|: {}, edge probability: {}, repetition index: {}\n\tgraph: {}\n\ttreewidth: {}\n\truntime: {}\n".format(
             self.num_nodes,
-            self.probability,
-            self.num_edges,
+            self.edge_probability,
+            self.repetition_index,
+            self.undirected_graph,
             self.treewidth,
-            self.runtime_algorithm,
+            self.runtime_treewidth_computation,
         )
