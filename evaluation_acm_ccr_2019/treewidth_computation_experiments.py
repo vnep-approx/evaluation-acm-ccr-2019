@@ -108,14 +108,14 @@ class SimpleTreeDecompositionExperiment(object):
                         result = pickle.load(f)
                         if result.num_nodes not in result_dict:
                             result_dict[result.num_nodes] = {}
-                        if result.probability not in result_dict[result.num_nodes]:
-                            result_dict[result.num_nodes][result.probability] = []
-                        result_dict[result.num_nodes][result.probability].append(result)
+                        if result.edge_probability not in result_dict[result.num_nodes]:
+                            result_dict[result.num_nodes][result.edge_probability] = []
+                        result_dict[result.num_nodes][result.edge_probability].append(result)
                 except EOFError:
                     pass
 
 
-        pickle_file = self.output_file_base_name.format(process_index="aggregated")
+        pickle_file = self.output_file_base_name.format(process_index="aggregated_results")
         logger.info("Writing combined Pickle to {}".format(pickle_file))
         with open(pickle_file, "w") as f:
             pickle.dump(result_dict, f)
