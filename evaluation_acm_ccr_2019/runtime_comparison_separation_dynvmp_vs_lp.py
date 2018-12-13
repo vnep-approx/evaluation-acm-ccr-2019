@@ -34,8 +34,6 @@ import matplotlib
 from matplotlib import pyplot as plt
 import logging
 
-from vnep_approx.to_delete import ccr_2018_eval
-
 from collections import namedtuple
 
 logger = logging.getLogger(__name__)
