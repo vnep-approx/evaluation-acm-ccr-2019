@@ -48,9 +48,9 @@ logger = logging.getLogger(__name__)
     - the number of repetitions."""
 
 
-def run_experiment_from_yaml(parameter_file, output_file_base_name, threads):
+def run_experiment_from_yaml(parameter_file, output_file_base_name, threads, timeout):
     param_space = yaml.load(parameter_file)
-    sg = SimpleTreeDecompositionExperiment(threads, output_file_base_name)
+    sg = SimpleTreeDecompositionExperiment(threads, output_file_base_name, timeout)
     sg.start_experiments(param_space)
 
 
@@ -58,13 +58,14 @@ class SimpleTreeDecompositionExperiment(object):
     """ Generates the full parameter space and executes the experiments given the number of threads passed to the constructor.
     Mostly copied from alib.scenariogeneration, but uses the build_scenario_simple function defined below instead."""
 
-    def __init__(self, threads, output_file_base_name):
+    def __init__(self, threads, output_file_base_name,timeout=None):
         self.threads = threads
         self.output_file_base_name = output_file_base_name
         self.output_files = [
             self.output_file_base_name.format(process_index=process_index)
             for process_index in range(self.threads)
         ]
+        self.timeout = timeout
 
     def start_experiments(self, scenario_parameter_space):
         number_of_repetitions = 1
@@ -87,6 +88,7 @@ class SimpleTreeDecompositionExperiment(object):
                 random_seed_base + process_index,
                 number_of_repetitions,
                 self.output_files[process_index],
+                self.timeout,
             )) for process_index in range(self.threads)]
 
         for p in processes:
@@ -121,7 +123,7 @@ class SimpleTreeDecompositionExperiment(object):
             pickle.dump(result_dict, f)
 
 
-def execute_single_experiment(process_index, num_processes, parameter_space, random_seed, repetitions, out_file):
+def execute_single_experiment(process_index, num_processes, parameter_space, random_seed, repetitions, out_file, timeout):
     ''' Main function for computing the treewidths of random graphs. This function is called in its own process (see above).
         Each process generates and stores only the results lying in its range.
     '''
@@ -140,13 +142,13 @@ def execute_single_experiment(process_index, num_processes, parameter_space, ran
     )):
         if repetition_index % num_processes == process_index:
             num_nodes, prob, repetition_index = params
-            logger.info("Processing graph {} with {} nodes and {} prob, rep {}".format(repetition_index, num_nodes, prob, repetition_index))
+            logger.info("Processing graph with {} nodes and {} prob, rep {} (timeout for computation: {})".format(num_nodes, prob, repetition_index, timeout))
             gen_time_start = time.time()
             graph = graph_generator.generate_graph(num_nodes, prob)
             gen_time = time.time() - gen_time_start
 
             algorithm_time_start = time.time()
-            tree_decomp = twm.compute_tree_decomposition(graph)
+            tree_decomp = twm.compute_tree_decomposition(graph, logger=logger, timeout=timeout)
             algorithm_time = time.time() - algorithm_time_start
             assert tree_decomp.is_tree_decomposition(graph)
 
@@ -154,11 +156,11 @@ def execute_single_experiment(process_index, num_processes, parameter_space, ran
                 num_nodes=num_nodes,
                 edge_probability=prob,
                 repetition_index=repetition_index,
-                undirected_graph=graph,
+                undirected_graph_edge_representation=graph.get_edge_representation(),
                 treewidth=tree_decomp.width,
                 runtime_treewidth_computation=algorithm_time,
             )
-            logger.info("Result: {}".format(result))
+            logger.info("Result: {}".format(result.short_representation()))
 
             with open(out_file, "a") as f:
                 pickle.dump(result, f)
@@ -209,7 +211,7 @@ class TreeDecompositionAlgorithmResult(object):
             num_nodes,
             edge_probability,
             repetition_index,
-            undirected_graph,
+            undirected_graph_edge_representation,
             treewidth,
             runtime_treewidth_computation,
     ):
@@ -219,16 +221,25 @@ class TreeDecompositionAlgorithmResult(object):
         self.repetition_index = repetition_index
 
         #the randomly generated graph and its treewidth and the runtime for the tree decomposition
-        self.undirected_graph = undirected_graph
+        self.undirected_graph_edge_representation = undirected_graph_edge_representation
         self.treewidth = treewidth
         self.runtime_treewidth_computation = runtime_treewidth_computation
+
+    def short_representation(self):
+        return "Tree Decomposition Result for |V|: {}, edge probability: {}, repetition index: {}\n\ttreewidth: {}\n\truntime: {}\n".format(
+            self.num_nodes,
+            self.edge_probability,
+            self.repetition_index,
+            self.treewidth,
+            self.runtime_treewidth_computation,
+        )
 
     def __str__(self):
         return "Tree Decomposition Result for |V|: {}, edge probability: {}, repetition index: {}\n\tgraph: {}\n\ttreewidth: {}\n\truntime: {}\n".format(
             self.num_nodes,
             self.edge_probability,
             self.repetition_index,
-            self.undirected_graph,
+            self.undirected_graph_edge_representation,
             self.treewidth,
             self.runtime_treewidth_computation,
         )

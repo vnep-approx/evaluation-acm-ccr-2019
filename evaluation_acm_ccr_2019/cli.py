@@ -45,17 +45,21 @@ def cli():
 @cli.command()
 @click.argument('yaml_parameter_file', type=click.File('r'))
 @click.option('--threads', default=1)
-def execute_treewidth_computation_experiment(yaml_parameter_file, threads):
+@click.option('--timeout', type=click.INT, default=-1)
+def execute_treewidth_computation_experiment(yaml_parameter_file, threads, timeout):
     click.echo('Generate Scenarios for evaluation of the treewidth model')
 
     util.ExperimentPathHandler.initialize()
+
+    if timeout <= 0:
+        timeout = None
 
     file_basename = os.path.basename(yaml_parameter_file.name).split(".")[0].lower()
     log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR, "{}_parent.log".format(file_basename))
     output_file = os.path.join(util.ExperimentPathHandler.OUTPUT_DIR,
                                "{}_results_{{process_index}}.pickle".format(file_basename))
     util.initialize_root_logger(log_file)
-    treewidth_computation_experiments.run_experiment_from_yaml(yaml_parameter_file, output_file, threads)
+    treewidth_computation_experiments.run_experiment_from_yaml(yaml_parameter_file, output_file, threads, timeout)
 
 
 @cli.command(short_help="extracts data to be plotted for the separation lp")
