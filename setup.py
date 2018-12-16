@@ -4,9 +4,9 @@ install_requires = [
     # "gurobipy",  	# install this manually
     # "alib",      	# install this manually
     # "vnep_approx" , 	# install this manually 
-    "matplotlib",
+    "matplotlib>=2.2,<2.3",
     "numpy",
-    "click",
+    "click==6.7",
     "pyyaml",
     "jsonpickle",
 ]
