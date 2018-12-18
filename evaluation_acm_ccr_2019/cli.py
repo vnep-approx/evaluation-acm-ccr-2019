@@ -67,6 +67,7 @@ def execute_treewidth_computation_experiment(yaml_parameter_file, threads, timeo
     util.initialize_root_logger(log_file)
     treewidth_computation_experiments.run_experiment_from_yaml(yaml_parameter_file, output_file, threads, timeout)
 
+@cli.command(short_help="extracts undirected graphs")
 @click.argument('input_pickle_file', type=click.Path())
 @click.argument('output_pickle_file', type=click.Path())
 @click.argument('min_tw', type=click.INT)
