@@ -58,10 +58,10 @@ class SimpleTreeDecompositionExperiment(object):
     """ Generates the full parameter space and executes the experiments given the number of threads passed to the constructor.
     Mostly copied from alib.scenariogeneration, but uses the build_scenario_simple function defined below instead."""
 
-    def __init__(self, threads, output_file_base_name,timeout=None):
+    def __init__(self, threads, output_file_base, timeout=None):
         self.threads = threads
-        self.output_file_base_name = output_file_base_name
-        self.output_files = [
+        self.output_file_base_name = output_file_base
+        self.output_filenames = [
             self.output_file_base_name.format(process_index=process_index)
             for process_index in range(self.threads)
         ]
@@ -78,6 +78,14 @@ class SimpleTreeDecompositionExperiment(object):
             random_seed_base = scenario_parameter_space['random_seed_base']
             del scenario_parameter_space['random_seed_base']
 
+        store_graphs_of_treewidth = []
+        if 'store_graphs_of_treewidth' in scenario_parameter_space:
+            store_graphs_of_treewidth = scenario_parameter_space['store_graphs_of_treewidth']
+
+        store_only_connected_graphs = False
+        if 'store_only_connected_graphs' in scenario_parameter_space:
+            store_only_connected_graphs = scenario_parameter_space['store_only_connected_graphs']
+
         processes = [mp.Process(
             target=execute_single_experiment,
             name="worker_{}".format(process_index),
@@ -87,8 +95,10 @@ class SimpleTreeDecompositionExperiment(object):
                 scenario_parameter_space,
                 random_seed_base + process_index,
                 number_of_repetitions,
-                self.output_files[process_index],
+                self.output_filenames[process_index],
                 self.timeout,
+                store_graphs_of_treewidth,
+                store_only_connected_graphs,
             )) for process_index in range(self.threads)]
 
         for p in processes:
@@ -103,7 +113,7 @@ class SimpleTreeDecompositionExperiment(object):
     def combine_results_to_overall_pickle(self):
         logger.info("Combining results")
         result_dict = {}
-        for fname in self.output_files:
+        for fname in self.output_filenames:
             with open(fname, "r") as f:
                 try:
                     while True:
@@ -123,7 +133,15 @@ class SimpleTreeDecompositionExperiment(object):
             pickle.dump(result_dict, f)
 
 
-def execute_single_experiment(process_index, num_processes, parameter_space, random_seed, repetitions, out_file, timeout):
+def execute_single_experiment(process_index,
+                              num_processes,
+                              parameter_space,
+                              random_seed,
+                              repetitions,
+                              out_file,
+                              timeout,
+                              store_graphs_of_treewidth,
+                              store_only_connected_graphs):
     ''' Main function for computing the treewidths of random graphs. This function is called in its own process (see above).
         Each process generates and stores only the results lying in its range.
     '''
@@ -143,21 +161,41 @@ def execute_single_experiment(process_index, num_processes, parameter_space, ran
         if repetition_index % num_processes == process_index:
             num_nodes, prob, repetition_index = params
             logger.info("Processing graph with {} nodes and {} prob, rep {} (timeout for computation: {})".format(num_nodes, prob, repetition_index, timeout))
-            gen_time_start = time.time()
+            gen_time_start = time.clock()
             graph = graph_generator.generate_graph(num_nodes, prob)
-            gen_time = time.time() - gen_time_start
+            gen_time = time.clock() - gen_time_start
 
-            algorithm_time_start = time.time()
+            algorithm_time_start = time.clock()
             tree_decomp = twm.compute_tree_decomposition(graph, logger=logger, timeout=timeout)
-            algorithm_time = time.time() - algorithm_time_start
-            assert tree_decomp.is_tree_decomposition(graph)
+            algorithm_time = time.clock() - algorithm_time_start
+
+
+            treewidth = None
+
+            if tree_decomp is not None:
+                assert tree_decomp.is_tree_decomposition(graph)
+                treewidth = tree_decomp.width
+
+            graph_edge_representation = None
+
+            if treewidth is not None and treewidth in store_graphs_of_treewidth:
+                #generally interesting graph: compute edge_representation
+                graph_edge_representation = graph.get_edge_representation()
+                if store_only_connected_graphs:
+                    #if we are only interested in connected graphs, then we only store the representation if it is connected
+                    if not datamodel.is_connected_undirected_edge_representation(graph_edge_representation):
+                        graph_edge_representation = None
+
+            if graph_edge_representation is not None:
+                logger.debug("Storing graph of treewidth {} and number of nodes {}.".format(treewidth, num_nodes))
+
 
             result = TreeDecompositionAlgorithmResult(
                 num_nodes=num_nodes,
                 edge_probability=prob,
                 repetition_index=repetition_index,
-                undirected_graph_edge_representation=graph.get_edge_representation(),
-                treewidth=tree_decomp.width,
+                undirected_graph_edge_representation=graph_edge_representation,
+                treewidth=treewidth,
                 runtime_treewidth_computation=algorithm_time,
             )
             logger.info("Result: {}".format(result.short_representation()))
@@ -166,7 +204,10 @@ def execute_single_experiment(process_index, num_processes, parameter_space, ran
                 pickle.dump(result, f)
 
             del graph
-            del tree_decomp
+            if tree_decomp is not None:
+                del tree_decomp
+            if graph_edge_representation is not None:
+                del graph_edge_representation
 
 
 class SimpleRandomGraphGenerator(object):
@@ -243,3 +284,7 @@ class TreeDecompositionAlgorithmResult(object):
             self.treewidth,
             self.runtime_treewidth_computation,
         )
+
+
+
+
