@@ -68,8 +68,8 @@ def execute_treewidth_computation_experiment(yaml_parameter_file, threads, timeo
     treewidth_computation_experiments.run_experiment_from_yaml(yaml_parameter_file, output_file, threads, timeout)
 
 @cli.command(short_help="extracts undirected graphs")
-@click.argument('input_pickle_file', type=click.File('r'))
-@click.argument('output_pickle_file', type=click.File('w'))
+@click.argument('input_pickle_file', type=click.Path())
+@click.argument('output_pickle_file', type=click.Path())
 @click.argument('min_tw', type=click.INT)
 @click.argument('max_tw', type=click.INT)
 @click.option('--min_nodes', type=click.INT, default=0)
@@ -82,7 +82,7 @@ def create_undirected_graph_storage_from_treewidth_experiments(input_pickle_file
                                                                min_nodes, max_nodes,
                                                                min_conn_prob, max_conn_prob):
     util.ExperimentPathHandler.initialize()
-    file_basename = os.path.basename(input_pickle_file.name).split(".")[0].lower()
+    file_basename = os.path.basename(input_pickle_file).split(".")[0].lower()
     log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR, "creation_undirected_graph_storage_from_treewidth_{}.log".format(file_basename))
     util.initialize_root_logger(log_file)
 
