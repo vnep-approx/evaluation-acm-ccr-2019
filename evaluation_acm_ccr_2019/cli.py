@@ -30,7 +30,13 @@ from . import treewidth_computation_experiments
 from . import treewidth_computation_plots
 from . import runtime_comparison_separation_dynvmp_vs_lp as sep_dynvmp_vs_lp
 from alib import util
-import pickle
+from alib import datamodel
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 
 def initialize_logger(filename, log_level_print, log_level_file, allow_override=False):
     log_level_print = logging._levelNames[log_level_print.upper()]
@@ -60,6 +66,55 @@ def execute_treewidth_computation_experiment(yaml_parameter_file, threads, timeo
                                "{}_results_{{process_index}}.pickle".format(file_basename))
     util.initialize_root_logger(log_file)
     treewidth_computation_experiments.run_experiment_from_yaml(yaml_parameter_file, output_file, threads, timeout)
+
+@click.argument('input_pickle_file', type=click.Path)
+@click.argument('output_pickle_file', type=click.Path)
+@click.argument('min_tw', type=click.INT)
+@click.argument('max_tw', type=click.INT)
+@click.option('--min_nodes', type=click.INT, default=0)
+@click.option('--max_nodes', type=click.INT, default=sys.maxint)
+@click.option('--min_conn_prob', type=click.FLOAT, default=0)
+@click.option('--max_conn_prob', type=click.FLOAT, default=1.0)
+def create_undirected_graph_storage_from_treewidth_experiments(input_pickle_file,
+                                                               output_pickle_file,
+                                                               min_tw, max_tw,
+                                                               min_nodes, max_nodes,
+                                                               min_conn_prob, max_conn_prob):
+    util.ExperimentPathHandler.initialize()
+    file_basename = os.path.basename(input_pickle_file.name).split(".")[0].lower()
+    log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR, "creation_undirected_graph_storage_from_treewidth_{}.log".format(file_basename))
+    util.initialize_root_logger(log_file)
+
+    # get root logger
+    logger = logging.getLogger()
+
+    graph_storage = datamodel.UndirectedGraphStorage(parameter_name="treewidth")
+
+    input_contents = None
+    logger.info("Reading file {}".format(input_pickle_file))
+    with open(input_pickle_file, "r") as f:
+        input_contents = pickle.load(f)
+
+    for number_of_nodes in input_contents.keys():
+        logger.info("Handling graphs stored for number of nodes {}".format(number_of_nodes))
+        data_for_nodes = input_contents[number_of_nodes]
+        for connection_probability in data_for_nodes.keys():
+            list_of_results = data_for_nodes[connection_probability]
+            for treewidth_computation_result in list_of_results:
+                result_tw = treewidth_computation_result.treewidth
+                if result_tw is None:
+                    continue
+                if result_tw < min_tw or result_tw > max_tw:
+                    continue
+                undirected_edge_representation = treewidth_computation_result.undirected_graph_edge_representation
+                if undirected_edge_representation is None:
+                    continue
+                graph_storage.add_graph(result_tw, undirected_edge_representation)
+
+    logger.info("Writing file {}".format(output_pickle_file))
+    with open(output_pickle_file, "w") as f:
+        pickle.dump(graph_storage, f)
+
 
 
 @cli.command(short_help="extracts data to be plotted for the separation lp")
