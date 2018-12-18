@@ -161,13 +161,13 @@ def execute_single_experiment(process_index,
         if repetition_index % num_processes == process_index:
             num_nodes, prob, repetition_index = params
             logger.info("Processing graph with {} nodes and {} prob, rep {} (timeout for computation: {})".format(num_nodes, prob, repetition_index, timeout))
-            gen_time_start = time.clock()
+            gen_time_start = time.time()
             graph = graph_generator.generate_graph(num_nodes, prob)
-            gen_time = time.clock() - gen_time_start
+            gen_time = time.time() - gen_time_start
 
-            algorithm_time_start = time.clock()
+            algorithm_time_start = time.time()
             tree_decomp = twm.compute_tree_decomposition(graph, logger=logger, timeout=timeout)
-            algorithm_time = time.clock() - algorithm_time_start
+            algorithm_time = time.time() - algorithm_time_start
 
 
             treewidth = None
