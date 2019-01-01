@@ -85,9 +85,9 @@ heatmap_specification_runtime = dict(
     colorbar_ticks=[x for x in range(0, 11, 20)],
     cmap="Greys",
     plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_list: np.average([
+    lookup_function=lambda vine_result_dict, vine_settings: np.average([
         vine_result.total_runtime
-        for vine_result in vine_result_list
+        for vine_result in vine_result_dict[vine_settings]
     ]),
     rounding_function=lambda x: int(round(x)),
 )
@@ -100,9 +100,9 @@ heatmap_specification_embedding_ratio = dict(
     colorbar_ticks=[x for x in range(0, 101, 20)],
     cmap="Greens",
     plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_list: 100 * np.average([
+    lookup_function=lambda vine_result_dict, vine_settings: 100 * np.average([
         vine_result.embedding_ratio
-        for vine_result in vine_result_list
+        for vine_result in vine_result_dict[vine_settings]
     ]),
 )
 
@@ -114,9 +114,9 @@ heatmap_specification_average_node_load = dict(
     colorbar_ticks=[x for x in range(0, 100, 10)],
     cmap="Oranges",
     plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_list: np.average([
+    lookup_function=lambda vine_result_dict, vine_settings: np.average([
         compute_average_node_load(vine_result)
-        for vine_result in vine_result_list
+        for vine_result in vine_result_dict[vine_settings]
     ]),
 )
 
@@ -128,9 +128,9 @@ heatmap_specification_average_edge_load = dict(
     colorbar_ticks=[x for x in range(0, 100, 10)],
     cmap="Purples",
     plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_list: np.average([
+    lookup_function=lambda vine_result_dict, vine_settings: np.average([
         compute_average_edge_load(vine_result)
-        for vine_result in vine_result_list
+        for vine_result in vine_result_dict[vine_settings]
     ]),
 )
 
@@ -142,9 +142,9 @@ heatmap_specification_max_node_load = dict(
     colorbar_ticks=[x for x in range(0, 101, 20)],
     cmap="Oranges",
     plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_list: max(
+    lookup_function=lambda vine_result_dict, vine_settings: max(
         compute_max_node_load(vine_result)
-        for vine_result in vine_result_list
+        for vine_result in vine_result_dict[vine_settings]
     )
 )
 
@@ -156,9 +156,9 @@ heatmap_specification_max_edge_load = dict(
     colorbar_ticks=[x for x in range(0, 101, 20)],
     cmap="Purples",
     plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_list: max(
+    lookup_function=lambda vine_result_dict, vine_settings: max(
         compute_max_edge_load(vine_result)
-        for vine_result in vine_result_list
+        for vine_result in vine_result_dict[vine_settings]
     )
 )
 
@@ -170,9 +170,9 @@ heatmap_specification_max_load = dict(
     colorbar_ticks=[x for x in range(0, 101, 20)],
     cmap="Reds",
     plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_list: max(
+    lookup_function=lambda vine_result_dict, vine_settings: max(
         compute_max_load(vine_result)
-        for vine_result in vine_result_list
+        for vine_result in vine_result_dict[vine_settings]
     )
 )
 
@@ -184,7 +184,7 @@ heatmap_specification_avg_max_node_load_dynvmp = dict(
     colorbar_ticks=[x for x in range(0, 101, 20)],
     cmap="Reds",
     plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-    lookup_function=lambda dyn_vmp_result, alg_sub_params: 100.0 * np.mean(dyn_vmp_result.max_node_loads[alg_sub_params])
+    lookup_function=lambda dynvmp_result, dynvmp_variant_tuple: 100.0 * np.mean(dynvmp_result.max_node_loads[dynvmp_variant_tuple])
 )
 heatmap_specification_avg_max_edge_load_dynvmp = dict(
     name="DynVMP: Max edge load",
@@ -194,7 +194,7 @@ heatmap_specification_avg_max_edge_load_dynvmp = dict(
     colorbar_ticks=[x for x in range(0, 101, 20)],
     cmap="Reds",
     plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-    lookup_function=lambda dyn_vmp_result, alg_sub_params: 100.0 * np.mean(dyn_vmp_result.max_edge_loads[alg_sub_params])
+    lookup_function=lambda dynvmp_result, dynvmp_variant_tuple: 100.0 * np.mean(dynvmp_result.max_edge_loads[dynvmp_variant_tuple])
 )
 
 heatmap_specification_mean_profit_dynvmp = dict(
@@ -205,7 +205,7 @@ heatmap_specification_mean_profit_dynvmp = dict(
     colorbar_ticks=[x for x in range(0, 101, 20)],
     cmap="Reds",
     plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-    lookup_function=lambda dyn_vmp_result, alg_sub_params: np.mean(dyn_vmp_result.profits[alg_sub_params])
+    lookup_function=lambda dynvmp_result, dynvmp_variant_tuple: np.mean(dynvmp_result.profits[dynvmp_variant_tuple])
 )
 
 heatmap_specification_lp_runtime_dynvmp = dict(
@@ -216,7 +216,7 @@ heatmap_specification_lp_runtime_dynvmp = dict(
     colorbar_ticks=[x for x in range(0, 101, 20)],
     cmap="Blues",
     plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-    lookup_function=lambda dyn_vmp_result, alg_sub_params: dyn_vmp_result.lp_time_optimization
+    lookup_function=lambda dynvmp_result, dynvmp_variant_tuple: dynvmp_result.lp_time_optimization
 )
 
 global_heatmap_specfications = [
@@ -615,10 +615,11 @@ class SingleHeatmapPlotter(AbstractPlotter):
         solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
         result = [x[self.algorithm_id][self.execution_id] for x in solution_dicts]
         if self.heatmap_plot_type == HeatmapPlotType.ViNE:
-            result = [r for subparam_r_dict in result
-                      for (sub_param, r) in subparam_r_dict.items()
-                      if all(x == y for (x, y) in zip(sub_param, self.algorithm_sub_parameter))]
+            # result should be a list of dicts mapping vine_settings to lists of ReducedOfflineViNEResultCollection instances
+            if result and self.algorithm_sub_parameter not in result[0]:
+                return None
         elif self.heatmap_plot_type == HeatmapPlotType.RandRoundSepLPDynVMP:
+            # result should be a list of ReducedRandRoundSepLPOptDynVMPCollectionResult instances
             if result and self.algorithm_sub_parameter not in result[0].profits:
                 return None
         return result
@@ -687,13 +688,11 @@ class SingleHeatmapPlotter(AbstractPlotter):
 
                 solutions = self._lookup_solutions(scenario_ids_to_consider)
                 if not solutions:
+                    logger.info("Found no solutions for algorithm variant {}".format(self.algorithm_sub_parameter))
                     return
 
-                if self.heatmap_plot_type == HeatmapPlotType.ViNE:
-                    values = [heatmap_metric_specification['lookup_function'](solution) for solution in solutions]
-                elif self.heatmap_plot_type == HeatmapPlotType.RandRoundSepLPDynVMP:
-                    values = [heatmap_metric_specification['lookup_function'](solution, self.algorithm_sub_parameter)
-                              for solution in solutions]
+                values = [heatmap_metric_specification['lookup_function'](solution, self.algorithm_sub_parameter)
+                          for solution in solutions]
 
                 if 'metric_filter' in heatmap_metric_specification:
                     values = [value for value in values if heatmap_metric_specification['metric_filter'](value)]
