@@ -45,7 +45,8 @@ ReducedOfflineViNEResultCollection = namedtuple(
         "embedding_ratio",
         "original_number_requests",
         "num_req_with_profit",
-        "load",
+        "max_node_load",
+        "max_edge_load"
     ],
 )
 
@@ -53,18 +54,44 @@ ReducedRandRoundSepLPOptDynVMPCollectionResult = namedtuple(
     "ReducedRandRoundSepLPOptDynVMPCollectionResult",
     [
         "lp_time_preprocess",
+        "lp_time_tree_decomposition",
+        "lp_time_dynvmp_initialization",
+        "lp_time_gurobi_optimization",
         "lp_time_optimization",
         "lp_status",
         "lp_profit",
         "lp_generated_columns",
-        "best_solution_load",
         "max_node_loads",
         "max_edge_loads",
         "rounding_runtimes",
-        "profits",
-        "best_solution_embedding_ratio",
+        "profits"
     ],
 )
+
+AggregatedData = namedtuple(
+    "AggregatedData",
+    [
+        "min",
+        "mean",
+        "max",
+        "std_dev",
+        "value_count"
+    ]
+)
+
+def get_aggregated_data(list_of_values):
+    _min = np.min(list_of_values)
+    _mean = np.mean(list_of_values)
+    _max = np.max(list_of_values)
+    _std_dev = np.std(list_of_values)
+    _value_count = len(list_of_values)
+    return AggregatedData(min=_min,
+                          max=_max,
+                          mean=_mean,
+                          std_dev=_std_dev,
+                          value_count=_value_count)
+
+
 
 logger = util.get_logger(__name__, make_file=False, propagate=True)
 
@@ -113,8 +140,8 @@ class OfflineViNEResultCollectionReducer(object):
                         for (result_index, result) in result_list:
                             solution_object = result.get_solution()
                             mappings = solution_object.request_mapping
-                            number_of_embedded_reqs = 0
                             number_of_req_profit = 0
+                            number_of_embedded_reqs = 0
                             number_of_requests = len(solution_object.scenario.requests)
 
                             load = _initialize_load_dict(scenario)
@@ -132,7 +159,8 @@ class OfflineViNEResultCollectionReducer(object):
                             assert num_is_embedded == number_of_embedded_reqs
 
                             reduced = ReducedOfflineViNEResultCollection(
-                                load=load,
+                                max_node_load=None, #TODO
+                                max_edge_load=None, #TODO
                                 total_runtime=result.total_runtime,
                                 profit=result.profit,
                                 mean_runtime_per_request=np.mean(result.runtime_per_request.values()),
@@ -143,7 +171,7 @@ class OfflineViNEResultCollectionReducer(object):
                                 num_edge_mapping_failed=num_edge_mapping_failed,
                                 embedding_ratio=embedding_ratio,
                                 num_req_with_profit=number_of_req_profit,
-                                original_number_requests=number_of_requests,
+                                original_number_requests=number_of_requests
                             )
                             ssd_reduced[algorithm][scenario_id][exec_id][vine_settings].append(reduced)
         del scenario_solution_storage.scenario_parameter_container.scenario_list
@@ -227,9 +255,7 @@ class RandRoundSepLPOptDynVMPCollectionResultReducer(object):
         max_node_loads = {}
         max_edge_loads = {}
         rounding_runtimes = {}
-        best_solution_embedding_ratio = {}
         profits = {}
-        best_solution_load = {}
 
         for algorithm_sub_parameters, rounding_result_list in solution.solutions.items():
             max_node_loads[algorithm_sub_parameters] = []
@@ -237,39 +263,31 @@ class RandRoundSepLPOptDynVMPCollectionResultReducer(object):
             rounding_runtimes[algorithm_sub_parameters] = []
             profits[algorithm_sub_parameters] = []
 
-            best_solution_embedding_ratio[algorithm_sub_parameters] = -1
-            best_solution_load[algorithm_sub_parameters] = _initialize_load_dict(solution.scenario)
             for rounding_result in rounding_result_list:
-                assert isinstance(rounding_result, treewidth_model.RandomizedRoundingSolution)
-                number_of_embedded_reqs = 0
-                if rounding_result.solution is not None:
-                    # assumes that only the best solution is saved fully, as is the case in the current implementation
-                    assert isinstance(rounding_result.solution, solutions.IntegralScenarioSolution)
-                    for req, mapping in rounding_result.solution.request_mapping.items():
-                        if mapping is not None and mapping.is_embedded:
-                            _compute_mapping_load(
-                                best_solution_load[algorithm_sub_parameters], req, mapping
-                            )
-                            number_of_embedded_reqs += 1
-
-                    best_solution_embedding_ratio[algorithm_sub_parameters] = number_of_embedded_reqs / float(len(solution.scenario.requests))
-
                 max_node_loads[algorithm_sub_parameters].append(rounding_result.max_node_load)
                 max_edge_loads[algorithm_sub_parameters].append(rounding_result.max_edge_load)
                 rounding_runtimes[algorithm_sub_parameters].append(rounding_result.time_to_round_solution)
                 profits[algorithm_sub_parameters].append(rounding_result.profit)
 
+        for algorithm_sub_parameters in solution.solutions.keys():
+            max_node_loads[algorithm_sub_parameters] = get_aggregated_data(max_node_loads[algorithm_sub_parameters])
+            max_edge_loads[algorithm_sub_parameters] = get_aggregated_data(max_edge_loads[algorithm_sub_parameters])
+            rounding_runtimes[algorithm_sub_parameters] = get_aggregated_data(rounding_runtimes[algorithm_sub_parameters])
+            profits[algorithm_sub_parameters] = get_aggregated_data(profits[algorithm_sub_parameters])
+
         assert isinstance(solution.lp_computation_information, treewidth_model.SeparationLPSolution)
         # TODO Check which information is actually of interest
         # TODO Some of the data can be reduced further (store only mean and std. dev.)
+
         solution = ReducedRandRoundSepLPOptDynVMPCollectionResult(
             lp_time_preprocess=solution.lp_computation_information.time_preprocessing,
+            lp_time_tree_decomposition=get_aggregated_data(solution.lp_computation_information.tree_decomp_runtimes),
+            lp_time_dynvmp_initialization=get_aggregated_data(solution.lp_computation_information.dynvmp_init_runtimes),
+            lp_time_gurobi_optimization=get_aggregated_data(solution.lp_computation_information.gurobi_runtimes),
             lp_time_optimization=solution.lp_computation_information.time_optimization,
             lp_status=solution.lp_computation_information.status,
             lp_profit=solution.lp_computation_information.profit,
             lp_generated_columns=solution.lp_computation_information.number_of_generated_mappings,
-            best_solution_load=best_solution_load,
-            best_solution_embedding_ratio=best_solution_embedding_ratio,
             max_node_loads=max_node_loads,
             max_edge_loads=max_edge_loads,
             rounding_runtimes=rounding_runtimes,
