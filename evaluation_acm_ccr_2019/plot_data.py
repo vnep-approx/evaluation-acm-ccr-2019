@@ -35,6 +35,7 @@ ReducedOfflineViNEResultCollection = namedtuple(
     "ReducedOfflineViNEResultCollection",
     [
         "total_runtime",
+        "profit",
         "mean_runtime_per_request",
         "std_dev_runtime_per_request",
         "num_is_embedded",
@@ -133,6 +134,7 @@ class OfflineViNEResultCollectionReducer(object):
                             reduced = ReducedOfflineViNEResultCollection(
                                 load=load,
                                 total_runtime=result.total_runtime,
+                                profit=result.profit,
                                 mean_runtime_per_request=np.mean(result.runtime_per_request.values()),
                                 std_dev_runtime_per_request=np.std(result.runtime_per_request.values()),
                                 num_is_embedded=num_is_embedded,
