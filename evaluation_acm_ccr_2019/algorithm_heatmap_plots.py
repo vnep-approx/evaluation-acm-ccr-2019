@@ -32,6 +32,7 @@ import sys
 from collections import namedtuple
 from itertools import combinations, product
 from time import gmtime, strftime
+import copy
 
 import matplotlib
 import matplotlib.patheffects as PathEffects
@@ -77,174 +78,436 @@ information:
 
 """
 
-heatmap_specification_runtime = dict(
-    name="ViNE: Mean Runtime [s]",
-    filename="mean_runtime",
-    vmin=0,
-    vmax=11,
-    colorbar_ticks=[x for x in range(0, 11, 20)],
-    cmap="Greys",
-    plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_dict, vine_settings: np.average([
-        vine_result.total_runtime
-        for vine_result in vine_result_dict[vine_settings]
-    ]),
-    rounding_function=lambda x: int(round(x)),
-)
 
-heatmap_specification_embedding_ratio = dict(
-    name="ViNE: Acceptance Ratio [%]",
-    filename="embedding_ratio",
-    vmin=0.0,
-    vmax=100.0,
-    colorbar_ticks=[x for x in range(0, 101, 20)],
-    cmap="Greens",
-    plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_dict, vine_settings: 100 * np.average([
-        vine_result.embedding_ratio
-        for vine_result in vine_result_dict[vine_settings]
-    ]),
-)
+def get_list_of_vine_settings():
+    result = []
+    for (edge_embedding_model, lp_objective, rounding_procedure) in itertools.product(
+            vine.ViNEEdgeEmbeddingModel,
+            vine.ViNELPObjective,
+            vine.ViNERoundingProcedure,
+    ):
+        if edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE:
+            continue
+        if lp_objective != vine.ViNELPObjective.ViNE_LB_DEF:
+            continue
+        result.append(vine.ViNESettingsFactory.get_vine_settings(
+            edge_embedding_model=edge_embedding_model,
+            lp_objective=lp_objective,
+            rounding_procedure=rounding_procedure,
+        ))
+    return result
 
-heatmap_specification_average_node_load = dict(
-    name="ViNE: Avg. Node Load [%]",
-    filename="avg_node_load",
-    vmin=0.0,
-    vmax=100,
-    colorbar_ticks=[x for x in range(0, 100, 10)],
-    cmap="Oranges",
-    plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_dict, vine_settings: np.average([
-        compute_average_node_load(vine_result)
-        for vine_result in vine_result_dict[vine_settings]
-    ]),
-)
+def get_list_of_rr_settings():
+    result = []
+    for sub_param in itertools.product(
+            treewidth_model.LPRecomputationMode,
+            treewidth_model.RoundingOrder,
+    ):
+        if sub_param[0] == treewidth_model.LPRecomputationMode.RECOMPUTATION_WITH_SINGLE_SEPARATION:
+            continue
+        result.append(sub_param)
+    return result
 
-heatmap_specification_average_edge_load = dict(
-    name="ViNE: Avg. Edge Load [%]",
-    filename="avg_edge_load",
-    vmin=0.0,
-    vmax=100,
-    colorbar_ticks=[x for x in range(0, 100, 10)],
-    cmap="Purples",
-    plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_dict, vine_settings: np.average([
-        compute_average_edge_load(vine_result)
-        for vine_result in vine_result_dict[vine_settings]
-    ]),
-)
 
-heatmap_specification_max_node_load = dict(
-    name="ViNE: Max. Node Load [%]",
-    filename="max_node_load",
-    vmin=0.0,
-    vmax=100,
-    colorbar_ticks=[x for x in range(0, 101, 20)],
-    cmap="Oranges",
-    plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_dict, vine_settings: max(
-        compute_max_node_load(vine_result)
-        for vine_result in vine_result_dict[vine_settings]
+def get_alg_variant_string(plot_type, algorithm_sub_parameter):
+    if plot_type == HeatmapPlotType.ViNE:
+        vine.ViNESettingsFactory.check_vine_settings(algorithm_sub_parameter)
+        is_splittable = algorithm_sub_parameter.edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE
+        is_load_balanced_objective = (
+                algorithm_sub_parameter.lp_objective in
+                [vine.ViNELPObjective.ViNE_LB_DEF, vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS]
+        )
+        is_cost_objective = (
+                algorithm_sub_parameter.lp_objective in
+                [vine.ViNELPObjective.ViNE_COSTS_DEF, vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS]
+        )
+        is_random_rounding_procedure = algorithm_sub_parameter.rounding_procedure == vine.ViNERoundingProcedure.RANDOMIZED
+        return "vine_{}{}{}{}".format(
+            "mcf" if is_splittable else "sp",
+            "_lb" if is_load_balanced_objective else "",
+            "_cost" if is_cost_objective else "",
+            "_rand" if is_random_rounding_procedure else "_det",
+        )
+    elif plot_type == HeatmapPlotType.RandRoundSepLPDynVMP:
+        lp_mode, rounding_mode = algorithm_sub_parameter
+        if lp_mode == treewidth_model.LPRecomputationMode.NONE:
+            lp_str = "recomp_none"
+        elif lp_mode == treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION:
+            lp_str = "recomp_no_sep"
+        elif lp_mode == treewidth_model.LPRecomputationMode.RECOMPUTATION_WITH_SINGLE_SEPARATION:
+            lp_str = "recomp_single_sep"
+        else:
+            raise ValueError()
+        if rounding_mode == treewidth_model.RoundingOrder.RANDOM:
+            rounding_str = "round_rand"
+        elif rounding_mode == treewidth_model.RoundingOrder.STATIC_REQ_PROFIT:
+            rounding_str = "round_static_profit"
+        elif rounding_mode == treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT:
+            rounding_str = "round_achieved_profit"
+        else:
+            raise ValueError()
+
+        return "dynvmp__{}__{}".format(
+            lp_str,
+            rounding_str,
+        )
+    else:
+        raise ValueError("Unexpected HeatmapPlotType {}".format(plot_type))
+
+class AbstractHeatmapSpecificationVineFactory(object):
+
+    prototype = dict()
+
+    @classmethod
+    def get_hs(cls, vine_settings_list, name):
+        result = copy.deepcopy(cls.prototype)
+        result['lookup_function'] = lambda x: cls.prototype['lookup_function'](x, vine_settings_list)
+        result['alg_variant'] = name
+        return result
+
+    @classmethod
+    def get_specific_vine_name(cls, vine_settings):
+        vine.ViNESettingsFactory.check_vine_settings(vine_settings)
+        is_splittable = vine_settings.edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE
+        is_load_balanced_objective = (
+                vine_settings.lp_objective in
+                [vine.ViNELPObjective.ViNE_LB_DEF, vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS]
+        )
+        is_scenario_cost_objective = (
+                vine_settings.lp_objective in
+                [vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS, vine.ViNELPObjective.ViNE_COSTS_INCL_SCENARIO_COSTS]
+        )
+        is_random_rounding_procedure = vine_settings.rounding_procedure == vine.ViNERoundingProcedure.RANDOMIZED
+        return "vine_{}_{}_{}_{}".format(
+            "mcf" if is_splittable else "sp",
+            "lb" if is_load_balanced_objective else "cost",
+            "scenario" if is_scenario_cost_objective else "def",
+            "rand" if is_random_rounding_procedure else "det",
+        )
+
+    @classmethod
+    def get_all_vine_settings_list_with_names(cls):
+        result = []
+
+        vine_settings_list = get_list_of_vine_settings()
+        result.append((vine_settings_list, "vine_ALL")) #first off: every vine combination
+
+        # second: each specific one
+        for vine_settings in vine_settings_list:
+            result.append(([vine_settings], cls.get_specific_vine_name(vine_settings)))
+
+        # third: each aggregation level, when applicable, i.e. there is more than one setting for that
+        for edge_embedding_model in vine.ViNEEdgeEmbeddingModel:
+            matching_settings = []
+            for vine_settings in vine_settings_list:
+                if vine_settings.edge_embedding_model == edge_embedding_model:
+                    matching_settings.append(vine_settings)
+            if len(matching_settings) > 0 and len(matching_settings) != len(vine_settings_list):
+                result.append((matching_settings, "vine_{}".format(
+                    "MCF" if edge_embedding_model is vine.ViNEEdgeEmbeddingModel.SPLITTABLE else "SP")))
+
+        for lp_objective in vine.ViNELPObjective:
+            matching_settings = []
+            for vine_settings in vine_settings_list:
+                if vine_settings.lp_objective == lp_objective:
+                    matching_settings.append(vine_settings)
+            if len(matching_settings) > 0 and len(matching_settings) != len(vine_settings_list):
+                is_load_balanced_objective = (
+                        vine_settings.lp_objective in
+                        [vine.ViNELPObjective.ViNE_LB_DEF, vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS]
+                )
+                is_scenario_cost_objective = (
+                        vine_settings.lp_objective in
+                        [vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS,
+                         vine.ViNELPObjective.ViNE_COSTS_INCL_SCENARIO_COSTS]
+                )
+                result.append((matching_settings, "vine_{}_{}".format(
+                    "LB" if is_load_balanced_objective else "COST",
+                    "SCENARIO" if is_scenario_cost_objective else "DEF"
+                )))
+
+        for rounding_proc in vine.ViNERoundingProcedure:
+            matching_settings = []
+            for vine_settings in vine_settings_list:
+                if vine_settings.rounding_procedure == rounding_proc:
+                    matching_settings.append(vine_settings)
+            if len(matching_settings) > 0 and len(matching_settings) != len(vine_settings_list):
+                result.append((matching_settings, "vine_{}".format(
+                    "RAND" if rounding_proc is vine.ViNERoundingProcedure.RANDOMIZED else "DET")))
+
+        return result
+
+    @classmethod
+    def get_all_hs(cls):
+        return [cls.get_hs(vine_settings_list, name) for vine_settings_list, name in cls.get_all_vine_settings_list_with_names()]
+
+class HSF_Vine_Runtime(AbstractHeatmapSpecificationVineFactory):
+
+    prototype = dict(
+        name="ViNE: Mean Runtime [s]",
+        filename="mean_runtime",
+        vmin=0,
+        vmax=11,
+        alg_variant=None,
+        colorbar_ticks=[x for x in range(0, 11, 20)],
+        cmap="Greys",
+        plot_type=HeatmapPlotType.ViNE,
+        lookup_function=lambda vine_result_dict, vine_settings_list: np.average([
+            vine_result.total_runtime
+            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+        ]),
+        rounding_function=lambda x: int(round(x)),
     )
-)
 
-heatmap_specification_max_edge_load = dict(
-    name="ViNE: Max. Edge Load [%]",
-    filename="max_edge_load",
-    vmin=0.0,
-    vmax=100,
-    colorbar_ticks=[x for x in range(0, 101, 20)],
-    cmap="Purples",
-    plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_dict, vine_settings: max(
-        compute_max_edge_load(vine_result)
-        for vine_result in vine_result_dict[vine_settings]
+class HSF_Vine_EmbeddingRatio(AbstractHeatmapSpecificationVineFactory):
+
+    prototype = dict(
+        name="ViNE: Acceptance Ratio [%]",
+        filename="embedding_ratio",
+        vmin=0.0,
+        vmax=100.0,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Greens",
+        plot_type=HeatmapPlotType.ViNE,
+        lookup_function=lambda vine_result_dict, vine_settings_list: 100 * np.average([
+            vine_result.embedding_ratio
+            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+        ]),
     )
-)
 
-heatmap_specification_max_load = dict(
-    name="ViNE: MaxLoad (Edge and Node)",
-    filename="max_load",
-    vmin=0.0,
-    vmax=100,
-    colorbar_ticks=[x for x in range(0, 101, 20)],
-    cmap="Reds",
-    plot_type=HeatmapPlotType.ViNE,
-    lookup_function=lambda vine_result_dict, vine_settings: max(
-        compute_max_load(vine_result)
-        for vine_result in vine_result_dict[vine_settings]
+class HSF_Vine_AvgNodeLoad(AbstractHeatmapSpecificationVineFactory):
+    prototype = dict(
+        name="ViNE: Avg. Node Load [%]",
+        filename="avg_node_load",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 100, 10)],
+        cmap="Oranges",
+        plot_type=HeatmapPlotType.ViNE,
+        lookup_function=lambda vine_result_dict, vine_settings_list: np.average([
+            compute_average_node_load(vine_result)
+            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+        ]),
     )
-)
 
-heatmap_specification_avg_max_node_load_dynvmp = dict(
-    name="DynVMP: Max node load",
-    filename="max_node_load",
-    vmin=0.0,
-    vmax=100,
-    colorbar_ticks=[x for x in range(0, 101, 20)],
-    cmap="Reds",
-    plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-    lookup_function=lambda dynvmp_result, dynvmp_variant_tuple: 100.0 * np.mean(dynvmp_result.max_node_loads[dynvmp_variant_tuple])
-)
-heatmap_specification_avg_max_edge_load_dynvmp = dict(
-    name="DynVMP: Max edge load",
-    filename="max_edge_load",
-    vmin=0.0,
-    vmax=100,
-    colorbar_ticks=[x for x in range(0, 101, 20)],
-    cmap="Reds",
-    plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-    lookup_function=lambda dynvmp_result, dynvmp_variant_tuple: 100.0 * np.mean(dynvmp_result.max_edge_loads[dynvmp_variant_tuple])
-)
+class HSF_Vine_AvgEdgeLoad(AbstractHeatmapSpecificationVineFactory):
+    prototype = dict(
+        name="ViNE: Avg. Edge Load [%]",
+        filename="avg_edge_load",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 100, 10)],
+        cmap="Purples",
+        plot_type=HeatmapPlotType.ViNE,
+        lookup_function=lambda vine_result_dict, vine_settings_list: np.average([
+            compute_average_edge_load(vine_result)
+            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+        ]),
+    )
 
-heatmap_specification_mean_profit_dynvmp = dict(
-    name="DynVMP: Mean Profit",
-    filename="mean_profit",
-    vmin=0.0,
-    vmax=100,
-    colorbar_ticks=[x for x in range(0, 101, 20)],
-    cmap="Reds",
-    plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-    lookup_function=lambda dynvmp_result, dynvmp_variant_tuple: np.mean(dynvmp_result.profits[dynvmp_variant_tuple])
-)
 
-heatmap_specification_lp_runtime_dynvmp = dict(
-    name="DynVMP: LP runtime",
-    filename="lp_runtime",
-    vmin=0.0,
-    vmax=100,
-    colorbar_ticks=[x for x in range(0, 101, 20)],
-    cmap="Blues",
-    plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-    lookup_function=lambda dynvmp_result, dynvmp_variant_tuple: dynvmp_result.lp_time_optimization
-)
+class HSF_Vine_MaxNodeLoad(AbstractHeatmapSpecificationVineFactory):
+    prototype = dict(
+        name="ViNE: Max. Node Load [%]",
+        filename="max_node_load",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Oranges",
+        plot_type=HeatmapPlotType.ViNE,
+        lookup_function=lambda vine_result_dict, vine_settings_list: max(
+            compute_max_node_load(vine_result)
+            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+        )
+    )
 
-global_heatmap_specfications = [
-    # heatmap_specification_obj,
-    heatmap_specification_runtime,
-    heatmap_specification_embedding_ratio,
-    heatmap_specification_average_node_load,
-    heatmap_specification_average_edge_load,
-    heatmap_specification_max_node_load,
-    heatmap_specification_max_edge_load,
-    heatmap_specification_max_load,
-    heatmap_specification_avg_max_node_load_dynvmp,
-    heatmap_specification_avg_max_edge_load_dynvmp,
-    heatmap_specification_mean_profit_dynvmp,
-    heatmap_specification_lp_runtime_dynvmp,
-    # heatmap_specification_avg_load,
-    # heatmap_specification_nu_real_req,
-    # heatmap_specification_embedding_ratio_cleaned,
-    # heatmap_specification_runtime_randround_preprocessing,
-    # heatmap_specification_runtime_randround_optimization,
-    # heatmap_specification_runtime_randround_postprocessing,
-    # heatmap_specification_comparison_baseline_rr_mdk,
-    # heatmap_specification_comparison_baseline_rr_heuristic,
-    # heatmap_specification_comparison_baseline_rr_min_load,
-    # heatmap_specification_comparison_baseline_rr_max_profit,
-    # heatmap_specification_runtime_randround_runtime,
-    # heatmap_specification_runtime_mdk_runtime,
-]
+class HSF_Vine_MaxEdgeLoad(AbstractHeatmapSpecificationVineFactory):
+
+    prototype = dict(
+        name="ViNE: Max. Edge Load [%]",
+        filename="max_edge_load",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Purples",
+        plot_type=HeatmapPlotType.ViNE,
+        lookup_function=lambda vine_result_dict, vine_settings_list: max(
+            compute_max_edge_load(vine_result)
+            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+        )
+    )
+
+class HSF_Vine_MaxLoad(AbstractHeatmapSpecificationVineFactory):
+
+    prototype = dict(
+        name="ViNE: MaxLoad (Edge and Node)",
+        filename="max_load",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.ViNE,
+        lookup_function=lambda vine_result_dict, vine_settings_list: max(
+            compute_max_load(vine_result)
+            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+        )
+    )
+
+class AbstractHeatmapSpecificationSepLPRRFactory(object):
+
+    prototype = dict()
+
+    @classmethod
+    def get_hs(cls, rr_settings, name):
+        result = copy.deepcopy(cls.prototype)
+        result['lookup_function'] = lambda x: cls.prototype['lookup_function'](x, rr_settings)
+        result['alg_variant'] = name
+        return result
+
+    @classmethod
+    def _get_lp_str(cls, lp_mode):
+        lp_str = None
+        if lp_mode == treewidth_model.LPRecomputationMode.NONE:
+            lp_str = "no_recomp"
+        elif lp_mode == treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION:
+            lp_str = "recomp_no_sep"
+        elif lp_mode == treewidth_model.LPRecomputationMode.RECOMPUTATION_WITH_SINGLE_SEPARATION:
+            lp_str = "recomp_single_sep"
+        else:
+            raise ValueError()
+        return lp_str
+
+    @classmethod
+    def _get_rounding_str(cls, rounding_mode):
+        rounding_str = None
+        if rounding_mode == treewidth_model.RoundingOrder.RANDOM:
+            rounding_str = "round_rand"
+        elif rounding_mode == treewidth_model.RoundingOrder.STATIC_REQ_PROFIT:
+            rounding_str = "round_static_profit"
+        elif rounding_mode == treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT:
+            rounding_str = "round_achieved_profit"
+        else:
+            raise ValueError()
+        return rounding_str
+
+
+    @classmethod
+    def get_specific_rr_name(cls, rr_settings):
+
+        return "rr_seplp_{}__{}".format(
+            cls._get_lp_str(rr_settings[0]),
+            cls._get_rounding_str(rr_settings[1]),
+        )
+
+    @classmethod
+    def get_all_rr_settings_list_with_names(cls):
+        result = []
+
+        rr_settings_list = get_list_of_rr_settings()
+        result.append((rr_settings_list, "rr_seplp_ALL")) #first off: every vine combination
+
+        # second: each specific one
+        for rr_settings in rr_settings_list:
+            result.append(([rr_settings], cls.get_specific_rr_name(rr_settings)))
+
+        # third: each aggregation level, when applicable, i.e. there is more than one setting for that
+        for lp_mode in treewidth_model.LPRecomputationMode:
+            matching_settings = []
+            for rr_settings in rr_settings_list:
+                if rr_settings[0] == lp_mode:
+                    matching_settings.append(rr_settings)
+            if len(matching_settings) > 0 and len(matching_settings) != len(rr_settings_list):
+                result.append((matching_settings, "rr_seplp_{}".format(
+                    cls._get_lp_str(lp_mode).upper())))
+
+        for rounding_mode in treewidth_model.RoundingOrder:
+            matching_settings = []
+            for rr_settings in rr_settings_list:
+                if rr_settings[1] == rounding_mode:
+                    matching_settings.append(rr_settings)
+            if len(matching_settings) > 0 and len(matching_settings) != len(rr_settings_list):
+                result.append((matching_settings, "rr_seplp_{}".format(
+                    cls._get_rounding_str(rounding_mode).upper()
+                )))
+
+        return result
+
+    @classmethod
+    def get_all_hs(cls):
+        return [cls.get_hs(rr_settings, name) for rr_settings, name in cls.get_all_rr_settings_list_with_names()]
+
+class HSF_RR_MaxNodeLoad(AbstractHeatmapSpecificationSepLPRRFactory):
+    prototype = dict(
+        name="RR: Max node load",
+        filename="max_node_load",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: 100.0 * np.mean([value for rr_seplp_settings in rr_seplp_settings_list for value in rr_seplp_result.max_node_loads[rr_seplp_settings]])
+    )
+
+class HSF_RR_MaxEdgeLoad(AbstractHeatmapSpecificationSepLPRRFactory):
+    prototype = dict(
+        name="RR: Max edge load",
+        filename="max_edge_load",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: 100.0 * np.mean([value for rr_seplp_settings in rr_seplp_settings_list for value in rr_seplp_result.max_edge_loads[rr_seplp_settings]])
+    )
+
+class HSF_RR_MeanProfit(AbstractHeatmapSpecificationSepLPRRFactory):
+    prototype = dict(
+        name="RR: Mean Profit",
+        filename="mean_profit",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: np.mean([value for rr_seplp_settings in rr_seplp_settings_list for value in rr_seplp_result.profits[rr_seplp_settings]])
+    )
+
+class HSF_RR_Runtime(AbstractHeatmapSpecificationSepLPRRFactory):
+    prototype = dict(
+        name="RR: LP runtime",
+        filename="lp_runtime",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Blues",
+        plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: rr_seplp_result.lp_time_optimization
+    )
+
+    @classmethod
+    def get_all_rr_settings_list_with_names(cls):
+        result = []
+
+        rr_settings_list = get_list_of_vine_settings()
+        result.append(([rr_settings_list[0]], "rr_seplp_ALL"))  # select arbitrary rr_settings to derive plots from
+
+        return result
+
+
+global_heatmap_specfications = HSF_Vine_Runtime.get_all_hs() + \
+                               HSF_Vine_EmbeddingRatio.get_all_hs() + \
+                               HSF_Vine_AvgEdgeLoad.get_all_hs() + \
+                               HSF_Vine_AvgNodeLoad.get_all_hs() + \
+                               HSF_Vine_MaxEdgeLoad.get_all_hs() + \
+                               HSF_Vine_MaxNodeLoad.get_all_hs() + \
+                               HSF_Vine_MaxLoad.get_all_hs() + \
+                               HSF_Vine_AvgEdgeLoad.get_all_hs() + \
+                               HSF_Vine_AvgEdgeLoad.get_all_hs() + \
+                               HSF_RR_Runtime.get_all_hs() + \
+                               HSF_RR_MaxNodeLoad.get_all_hs() + \
+                               HSF_RR_MaxEdgeLoad.get_all_hs() + \
+                               HSF_RR_MeanProfit.get_all_hs()
+
 
 heatmap_specifications_per_type = {
     plot_type_item: [
@@ -555,7 +818,6 @@ class SingleHeatmapPlotter(AbstractPlotter):
                  algorithm_id,
                  execution_id,
                  heatmap_plot_type,
-                 algorithm_sub_parameter,
                  list_of_axes_specifications=global_heatmap_axes_specifications,
                  list_of_metric_specifications=None,
                  show_plot=False,
@@ -583,7 +845,6 @@ class SingleHeatmapPlotter(AbstractPlotter):
                     raise RuntimeError("The metric specification {} does not agree with the plot type {}.".format(metric_specification, self.heatmap_plot_type))
             self.list_of_metric_specifications = list_of_metric_specifications
 
-        self.algorithm_sub_parameter = algorithm_sub_parameter
 
     def _construct_output_path_and_filename(self, metric_specification,
                                             heatmap_axes_specification,
@@ -596,9 +857,13 @@ class SingleHeatmapPlotter(AbstractPlotter):
         base = os.path.normpath(OUTPUT_PATH)
         date = strftime("%Y-%m-%d", gmtime())
         axes_foldername = heatmap_axes_specification['foldername']
-        sub_param_string = get_alg_variant_string(self.heatmap_plot_type, self.algorithm_sub_parameter)
+        sub_param_string = metric_specification['alg_variant']
 
-        output_path = os.path.join(base, date, OUTPUT_FILETYPE, axes_foldername, sub_param_string, filter_spec_path)
+        if sub_param_string is not None:
+            output_path = os.path.join(base, date, OUTPUT_FILETYPE, axes_foldername, sub_param_string, filter_spec_path)
+        else:
+            output_path = os.path.join(base, date, OUTPUT_FILETYPE, axes_foldername, filter_spec_path)
+
         fname = "__".join(str(x) for x in [
             metric_specification['filename'],
             filter_filename,
@@ -614,14 +879,15 @@ class SingleHeatmapPlotter(AbstractPlotter):
     def _lookup_solutions(self, scenario_ids):
         solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
         result = [x[self.algorithm_id][self.execution_id] for x in solution_dicts]
-        if self.heatmap_plot_type == HeatmapPlotType.ViNE:
-            # result should be a list of dicts mapping vine_settings to lists of ReducedOfflineViNEResultCollection instances
-            if result and self.algorithm_sub_parameter not in result[0]:
-                return None
-        elif self.heatmap_plot_type == HeatmapPlotType.RandRoundSepLPDynVMP:
-            # result should be a list of ReducedRandRoundSepLPOptDynVMPCollectionResult instances
-            if result and self.algorithm_sub_parameter not in result[0].profits:
-                return None
+        #todo check whether this is okay...
+        # if self.heatmap_plot_type == HeatmapPlotType.ViNE:
+        #     # result should be a list of dicts mapping vine_settings to lists of ReducedOfflineViNEResultCollection instances
+        #     if result and self.algorithm_sub_parameter not in result[0]:
+        #         return None
+        # elif self.heatmap_plot_type == HeatmapPlotType.RandRoundSepLPDynVMP:
+        #     # result should be a list of ReducedRandRoundSepLPOptDynVMPCollectionResult instances
+        #     if result and self.algorithm_sub_parameter not in result[0].profits:
+        #         return None
         return result
 
     def plot_single_heatmap_general(self,
@@ -687,11 +953,11 @@ class SingleHeatmapPlotter(AbstractPlotter):
                                             filter_indices) - self.forbidden_scenario_ids
 
                 solutions = self._lookup_solutions(scenario_ids_to_consider)
-                if not solutions:
-                    logger.info("Found no solutions for algorithm variant {}".format(self.algorithm_sub_parameter))
-                    return
 
-                values = [heatmap_metric_specification['lookup_function'](solution, self.algorithm_sub_parameter)
+                for solution in solutions:
+                    print solution
+
+                values = [heatmap_metric_specification['lookup_function'](solution)
                           for solution in solutions]
 
                 if 'metric_filter' in heatmap_metric_specification:
@@ -801,50 +1067,7 @@ def _construct_filter_specs(scenario_parameter_space_dict, parameter_filter_keys
     return result_list
 
 
-def get_alg_variant_string(plot_type, algorithm_sub_parameter):
-    if plot_type == HeatmapPlotType.ViNE:
-        vine.ViNESettingsFactory.check_vine_settings(algorithm_sub_parameter)
-        is_splittable = algorithm_sub_parameter.edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE
-        is_load_balanced_objective = (
-                algorithm_sub_parameter.lp_objective in
-                [vine.ViNELPObjective.ViNE_LB_DEF, vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS]
-        )
-        is_cost_objective = (
-                algorithm_sub_parameter.lp_objective in
-                [vine.ViNELPObjective.ViNE_COSTS_DEF, vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS]
-        )
-        is_random_rounding_procedure = algorithm_sub_parameter.rounding_procedure == vine.ViNERoundingProcedure.RANDOMIZED
-        return "vine_{}{}{}{}".format(
-            "mcf" if is_splittable else "sp",
-            "_lb" if is_load_balanced_objective else "",
-            "_cost" if is_cost_objective else "",
-            "_rand" if is_random_rounding_procedure else "_det",
-        )
-    elif plot_type == HeatmapPlotType.RandRoundSepLPDynVMP:
-        lp_mode, rounding_mode = algorithm_sub_parameter
-        if lp_mode == treewidth_model.LPRecomputationMode.NONE:
-            lp_str = "recomp_none"
-        elif lp_mode == treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION:
-            lp_str = "recomp_no_sep"
-        elif lp_mode == treewidth_model.LPRecomputationMode.RECOMPUTATION_WITH_SINGLE_SEPARATION:
-            lp_str = "recomp_single_sep"
-        else:
-            raise ValueError()
-        if rounding_mode == treewidth_model.RoundingOrder.RANDOM:
-            rounding_str = "round_rand"
-        elif rounding_mode == treewidth_model.RoundingOrder.STATIC_REQ_PROFIT:
-            rounding_str = "round_static_profit"
-        elif rounding_mode == treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT:
-            rounding_str = "round_achieved_profit"
-        else:
-            raise ValueError()
 
-        return "dynvmp__{}__{}".format(
-            lp_str,
-            rounding_str,
-        )
-    else:
-        raise ValueError("Unexpected HeatmapPlotType {}".format(plot_type))
 
 
 def evaluate_baseline_and_randround(datacontainer,
@@ -921,25 +1144,24 @@ def evaluate_baseline_and_randround(datacontainer,
     plotters = []
     # initialize plotters for each valid vine setting...
 
-    for algorithm_sub_parameter in iterate_algorithm_sub_parameters(heatmap_plot_type):
-        baseline_plotter = SingleHeatmapPlotter(output_path=output_path,
-                                                output_filetype=output_filetype,
-                                                scenario_solution_storage=datacontainer,
-                                                algorithm_id=baseline_algorithm_id,
-                                                algorithm_sub_parameter=algorithm_sub_parameter,
-                                                execution_id=baseline_execution_config,
-                                                heatmap_plot_type=heatmap_plot_type,
-                                                show_plot=show_plot,
-                                                save_plot=save_plot,
-                                                overwrite_existing_files=overwrite_existing_files,
-                                                forbidden_scenario_ids=forbidden_scenario_ids,
-                                                paper_mode=papermode)
+    baseline_plotter = SingleHeatmapPlotter(output_path=output_path,
+                                            output_filetype=output_filetype,
+                                            scenario_solution_storage=datacontainer,
+                                            algorithm_id=baseline_algorithm_id,
+                                            execution_id=baseline_execution_config,
+                                            heatmap_plot_type=heatmap_plot_type,
+                                            show_plot=show_plot,
+                                            save_plot=save_plot,
+                                            overwrite_existing_files=overwrite_existing_files,
+                                            forbidden_scenario_ids=forbidden_scenario_ids,
+                                            paper_mode=papermode)
 
-        plotters.append(baseline_plotter)
+    plotters.append(baseline_plotter)
 
     for filter_spec in filter_specs:
         for plotter in plotters:
             plotter.plot_figure(filter_spec)
+
 
 
 def iterate_algorithm_sub_parameters(plot_type):
