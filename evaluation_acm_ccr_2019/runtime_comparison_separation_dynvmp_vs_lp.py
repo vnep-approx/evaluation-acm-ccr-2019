@@ -21,13 +21,16 @@
 # SOFTWARE.
 #
 
-import pickle
 
 import numpy as np
 import alib
 import vnep_approx
-import pickle
 import os
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 from alib import util
 import matplotlib

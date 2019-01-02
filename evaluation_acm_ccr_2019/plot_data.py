@@ -22,10 +22,14 @@
 #
 
 import os
-import pickle
 from collections import namedtuple
 import numpy as np
 from alib import solutions, util
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 from vnep_approx import randomized_rounding_triumvirate, vine, treewidth_model
 

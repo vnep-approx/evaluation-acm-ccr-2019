@@ -1,5 +1,4 @@
 import os
-import pickle
 from time import gmtime, strftime, time
 
 import matplotlib.colors
@@ -11,6 +10,11 @@ import yaml
 from alib import util
 from matplotlib.colors import LogNorm
 from vnep_approx import treewidth_model
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 REQUIRED_FOR_PICKLE = treewidth_model  # this prevents pycharm from removing this import, which is required for unpickling solutions
 

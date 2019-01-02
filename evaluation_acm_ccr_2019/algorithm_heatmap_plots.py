@@ -27,12 +27,16 @@ This module handles all plotting related evaluation.
 """
 import itertools
 import os
-import pickle
 import sys
 from collections import namedtuple
 from itertools import combinations, product
 from time import gmtime, strftime
 import copy
+
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 import matplotlib
 import matplotlib.patheffects as PathEffects
