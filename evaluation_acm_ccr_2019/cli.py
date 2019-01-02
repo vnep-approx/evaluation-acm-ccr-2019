@@ -29,6 +29,7 @@ import click
 from . import treewidth_computation_experiments
 from . import treewidth_computation_plots
 from . import runtime_comparison_separation_dynvmp_vs_lp as sep_dynvmp_vs_lp
+from . import plot_data
 from alib import util
 from alib import datamodel
 
@@ -153,6 +154,50 @@ def extract_comparison_data_randround_vs_separation(separation_lp_pickle,
                                                     reduced_randround_pickle,
                                                     output_pickle):
     sep_dynvmp_vs_lp.extract_comparison_data_randround_vs_separation(separation_lp_pickle, reduced_randround_pickle, output_pickle)
+
+
+@cli.command(short_help="extracts data to be plotted for randomized rounding algorithms")
+@click.argument('input_pickle_file', type=click.Path())
+@click.option('--output_pickle_file', type=click.Path(), default=None, help="file to write to")
+@click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
+@click.option('--log_level_file', type=click.STRING, default="debug", help="log level for log file")
+def reduce_to_plotdata_rand_round_pickle(input_pickle_file, output_pickle_file, log_level_print, log_level_file):
+    """ Given a scenario solution pickle (input_pickle_file) this function extracts data
+        to be plotted and writes it to --output_pickle_file. If --output_pickle_file is not
+        given, a default name (derived from the input's basename) is derived.
+
+        The input_file must be contained in ALIB_EXPERIMENT_HOME/input and the output
+        will be written to ALIB_EXPERIMENT_HOME/output while the log is saved in
+        ALIB_EXPERIMENT_HOME/log.
+    """
+    util.ExperimentPathHandler.initialize(check_emptiness_log=False, check_emptiness_output=False)
+    log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR,
+                            "reduce_{}.log".format(os.path.basename(input_pickle_file)))
+    initialize_logger(log_file, log_level_print, log_level_file)
+    reducer = plot_data.RandRoundSepLPOptDynVMPCollectionResultReducer()
+    reducer.reduce_randround_result_collection(input_pickle_file, output_pickle_file)
+
+
+@cli.command(short_help="extracts data to be plotted for vine algorithms")
+@click.argument('input_pickle_file', type=click.Path())
+@click.option('--output_pickle_file', type=click.Path(), default=None, help="file to write to")
+@click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
+@click.option('--log_level_file', type=click.STRING, default="debug", help="log level for log file")
+def reduce_to_plotdata_vine_pickle(input_pickle_file, output_pickle_file, log_level_print, log_level_file):
+    """ Given a scenario solution pickle (input_pickle_file) this function extracts data
+        to be plotted and writes it to --output_pickle_file. If --output_pickle_file is not
+        given, a default name (derived from the input's basename) is derived.
+
+        The input_file must be contained in ALIB_EXPERIMENT_HOME/input and the output
+        will be written to ALIB_EXPERIMENT_HOME/output while the log is saved in
+        ALIB_EXPERIMENT_HOME/log.
+    """
+    util.ExperimentPathHandler.initialize(check_emptiness_log=False, check_emptiness_output=False)
+    log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR,
+                            "reduce_{}.log".format(os.path.basename(input_pickle_file)))
+    initialize_logger(log_file, log_level_print, log_level_file)
+    reducer = plot_data.OfflineViNEResultCollectionReducer()
+    reducer.reduce_vine_result_collection(input_pickle_file, output_pickle_file)
 
 
 def collect_existing_alg_ids(execution_parameter_container):
