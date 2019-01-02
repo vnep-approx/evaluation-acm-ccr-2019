@@ -83,6 +83,7 @@ AggregatedData = namedtuple(
     ]
 )
 
+
 def get_aggregated_data(list_of_values):
     _min = np.min(list_of_values)
     _mean = np.mean(list_of_values)
@@ -94,7 +95,6 @@ def get_aggregated_data(list_of_values):
                           mean=_mean,
                           std_dev=_std_dev,
                           value_count=_value_count)
-
 
 
 logger = util.get_logger(__name__, make_file=False, propagate=True)
@@ -162,9 +162,10 @@ class OfflineViNEResultCollectionReducer(object):
                             num_edge_mapping_failed, num_initial_lp_failed, num_is_embedded, num_node_mapping_failed = self._count_mapping_status(result)
                             assert num_is_embedded == number_of_embedded_reqs
 
+                            max_edge_load, max_node_load = get_max_node_and_edge_load(load, scenario.substrate)
                             reduced = ReducedOfflineViNEResultCollection(
-                                max_node_load=None, #TODO
-                                max_edge_load=None, #TODO
+                                max_node_load=max_node_load,
+                                max_edge_load=max_edge_load,
                                 total_runtime=result.total_runtime,
                                 profit=result.profit,
                                 mean_runtime_per_request=np.mean(result.runtime_per_request.values()),
@@ -332,3 +333,17 @@ def _compute_mapping_edge_load_splittable(load, req, req_mapping):
         edge_demand = req.get_edge_demand(ij)
         for uv, x in edge_vars_dict.items():
             load[uv] += edge_demand * x
+
+
+def get_max_node_and_edge_load(load_dict, substrate):
+    max_node_load = 0
+    max_edge_load = 0
+    for resource, value in load_dict.iteritems():
+        x, y = resource
+        if resource in substrate.edges:
+            max_edge_load = max(max_edge_load, value)
+        elif x in substrate.get_types() and y in substrate.nodes:
+            max_node_load = max(max_node_load, value)
+        else:
+            raise ValueError("Invalid resource {}".format(resource))
+    return max_edge_load, max_node_load
