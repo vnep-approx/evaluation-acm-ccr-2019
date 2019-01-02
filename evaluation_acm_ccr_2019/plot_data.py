@@ -180,9 +180,9 @@ class RandRoundSepLPOptDynVMPCollectionResultReducer(object):
     def __init__(self):
         pass
 
-    def reduce_dynvmp_result_collection(self,
-                                        randround_solutions_input_pickle_name,
-                                        reduced_randround_solutions_output_pickle_name=None):
+    def reduce_randround_result_collection(self,
+                                           randround_solutions_input_pickle_name,
+                                           reduced_randround_solutions_output_pickle_name=None):
 
         randround_solutions_input_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR,
                                                              randround_solutions_input_pickle_name)
