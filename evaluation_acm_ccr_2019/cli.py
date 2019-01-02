@@ -111,7 +111,7 @@ def create_undirected_graph_storage_from_treewidth_experiments(input_pickle_file
                 undirected_edge_representation = treewidth_computation_result.undirected_graph_edge_representation
                 if undirected_edge_representation is None:
                     continue
-                graph_storage.add_graph(result_tw, undirected_edge_representation)
+                graph_storage.add_graph_as_edge_representation(result_tw, undirected_edge_representation)
 
     logger.info("Writing file {}".format(output_pickle_file))
     with open(output_pickle_file, "w") as f:
