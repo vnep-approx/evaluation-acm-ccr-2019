@@ -31,26 +31,23 @@ try:
 except ImportError:
     import pickle
 
-from vnep_approx import randomized_rounding_triumvirate, vine, treewidth_model
+from vnep_approx import vine, treewidth_model
 
 REQUIRED_FOR_PICKLE = solutions  # this prevents pycharm from removing this import, which is required for unpickling solutions
 
 ReducedOfflineViNEResultCollection = namedtuple(
     "ReducedOfflineViNEResultCollection",
     [
-        "total_runtime",
-        "profit",
-        "mean_runtime_per_request",
-        "std_dev_runtime_per_request",
-        "num_is_embedded",
-        "num_initial_lp_failed",
-        "num_node_mapping_failed",
-        "num_edge_mapping_failed",
-        "embedding_ratio",
+        "total_runtime",  # AggregatedData
+        "profit",  # AggregatedData
+        "runtime_per_request",  # AggregatedData
+        "num_initial_lp_failed",  # sum across repetitions
+        "num_node_mapping_failed",  # sum across repetitions
+        "num_edge_mapping_failed",  # sum across repetitions
         "original_number_requests",
         "num_req_with_profit",
-        "max_node_load",
-        "max_edge_load"
+        "max_node_load",  # AggregatedData
+        "max_edge_load",  # AggregatedData
     ],
 )
 
@@ -141,44 +138,60 @@ class OfflineViNEResultCollectionReducer(object):
                     solution_collection = ssd[algorithm][scenario_id][exec_id].get_solution()
                     for vine_settings, result_list in solution_collection.iteritems():
                         ssd_reduced[algorithm][scenario_id][exec_id][vine_settings] = []
+                        number_of_req_profit = 0
+                        for req in scenario.requests:
+                            if req.profit > 0.001:
+                                number_of_req_profit += 1
+                        number_of_requests = len(scenario.requests)
+
+                        max_node_load_vals = np.zeros(len(result_list))
+                        max_edge_load_vals = np.zeros(len(result_list))
+                        total_runtime_vals = np.zeros(len(result_list))
+                        profit_vals = np.zeros(len(result_list))
+
+                        num_edge_mapping_failed = 0
+                        num_initial_lp_failed = 0
+                        num_node_mapping_failed = 0
+
+                        runtimes_per_request_vals = []
                         for (result_index, result) in result_list:
+                            assert isinstance(result, vine.OfflineViNEResult)
                             solution_object = result.get_solution()
                             mappings = solution_object.request_mapping
-                            number_of_req_profit = 0
-                            number_of_embedded_reqs = 0
-                            number_of_requests = len(solution_object.scenario.requests)
 
                             load = _initialize_load_dict(scenario)
-                            for req in solution_object.scenario.requests:
-                                if req.profit > 0.001:
-                                    number_of_req_profit += 1
+                            for req in scenario.requests:
+                                runtimes_per_request_vals.append(
+                                    result.runtime_per_request[req]
+                                )
                                 req_mapping = mappings[req]
                                 if req_mapping is not None and req_mapping.is_embedded:
-                                    number_of_embedded_reqs += 1
+                                    profit_vals[result_index] += req.profit
                                     _compute_mapping_load(load, req, req_mapping)
 
-                            embedding_ratio = number_of_embedded_reqs / float(number_of_requests)
-
-                            num_edge_mapping_failed, num_initial_lp_failed, num_is_embedded, num_node_mapping_failed = self._count_mapping_status(result)
-                            assert num_is_embedded == number_of_embedded_reqs
+                            edge_mapping_failed, lp_failed, is_embedded, node_mapping_failed = self._count_mapping_status(result)
+                            num_edge_mapping_failed += edge_mapping_failed
+                            num_initial_lp_failed += lp_failed
+                            num_node_mapping_failed += node_mapping_failed
 
                             max_edge_load, max_node_load = get_max_node_and_edge_load(load, scenario.substrate)
-                            reduced = ReducedOfflineViNEResultCollection(
-                                max_node_load=max_node_load,
-                                max_edge_load=max_edge_load,
-                                total_runtime=result.total_runtime,
-                                profit=result.profit,
-                                mean_runtime_per_request=np.mean(result.runtime_per_request.values()),
-                                std_dev_runtime_per_request=np.std(result.runtime_per_request.values()),
-                                num_is_embedded=num_is_embedded,
-                                num_initial_lp_failed=num_initial_lp_failed,
-                                num_node_mapping_failed=num_node_mapping_failed,
-                                num_edge_mapping_failed=num_edge_mapping_failed,
-                                embedding_ratio=embedding_ratio,
-                                num_req_with_profit=number_of_req_profit,
-                                original_number_requests=number_of_requests
-                            )
-                            ssd_reduced[algorithm][scenario_id][exec_id][vine_settings].append(reduced)
+                            max_node_load_vals[result_index] = max_node_load
+                            max_edge_load_vals[result_index] = max_edge_load
+                            total_runtime_vals[result_index] = result.total_runtime
+
+                        reduced = ReducedOfflineViNEResultCollection(
+                            max_node_load=get_aggregated_data(max_node_load_vals),
+                            max_edge_load=get_aggregated_data(max_edge_load_vals),
+                            total_runtime=get_aggregated_data(total_runtime_vals),
+                            profit=get_aggregated_data(profit_vals),
+                            runtime_per_request=get_aggregated_data(runtimes_per_request_vals),
+                            num_initial_lp_failed=num_initial_lp_failed,
+                            num_node_mapping_failed=num_node_mapping_failed,
+                            num_edge_mapping_failed=num_edge_mapping_failed,
+                            num_req_with_profit=number_of_req_profit,
+                            original_number_requests=number_of_requests
+                        )
+                        ssd_reduced[algorithm][scenario_id][exec_id][vine_settings].append(reduced)
         del scenario_solution_storage.scenario_parameter_container.scenario_list
         del scenario_solution_storage.scenario_parameter_container.scenario_triple
         scenario_solution_storage.algorithm_scenario_solution_dictionary = ssd_reduced
@@ -189,12 +202,13 @@ class OfflineViNEResultCollectionReducer(object):
         logger.info("All done.")
         return scenario_solution_storage
 
-    def _count_mapping_status(self, solution):
+    def _count_mapping_status(self, vine_result):
+        assert isinstance(vine_result, vine.OfflineViNEResult)
         num_is_embedded = 0
         num_initial_lp_failed = 0
         num_node_mapping_failed = 0
         num_edge_mapping_failed = 0
-        for status in solution.mapping_status_per_request.values():
+        for status in vine_result.mapping_status_per_request.values():
             if status == vine.ViNEMappingStatus.is_embedded:
                 num_is_embedded += 1
             elif status == vine.ViNEMappingStatus.initial_lp_failed:
