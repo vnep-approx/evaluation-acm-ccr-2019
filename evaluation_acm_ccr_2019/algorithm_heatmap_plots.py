@@ -62,7 +62,8 @@ class HeatmapPlotType(object):
     ViNE = 0  # a plot only for OfflineViNEResult data
     RandRoundSepLPDynVMP = 1  # a plot only for RandRoundSepLPOptDynVMPCollectionResult data
     SeparationLP = 2  # a plot only for SeparationLPSolution data
-    VALUE_RANGE = [0, 1, 2]
+    ComparisonVineRandRound = 3
+    VALUE_RANGE = [0, 1, 2, 3]
 
 
 """
@@ -90,9 +91,7 @@ def get_list_of_vine_settings():
             vine.ViNELPObjective,
             vine.ViNERoundingProcedure,
     ):
-        if edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE:
-            continue
-        if lp_objective != vine.ViNELPObjective.ViNE_LB_DEF:
+        if lp_objective == vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS or lp_objective == vine.ViNELPObjective.ViNE_COSTS_INCL_SCENARIO_COSTS:
             continue
         result.append(vine.ViNESettingsFactory.get_vine_settings(
             edge_embedding_model=edge_embedding_model,
@@ -469,14 +468,161 @@ class HSF_RR_Runtime(AbstractHeatmapSpecificationSepLPRRFactory):
         return result
 
 
-global_heatmap_specfications = HSF_Vine_Runtime.get_all_hs() + \
-                               HSF_Vine_MaxEdgeLoad.get_all_hs() + \
-                               HSF_Vine_MaxNodeLoad.get_all_hs() + \
-                               HSF_Vine_MaxLoad.get_all_hs() + \
-                               HSF_RR_Runtime.get_all_hs() + \
-                               HSF_RR_MaxNodeLoad.get_all_hs() + \
-                               HSF_RR_MaxEdgeLoad.get_all_hs() + \
-                               HSF_RR_MeanProfit.get_all_hs()
+class AbstractHeatmapSpecificationVineVsRandRoundFactory(object):
+
+    prototype = dict()
+
+    @classmethod
+    def get_hs(cls, vine_settings_list, randround_settings_list, name):
+        result = copy.deepcopy(cls.prototype)
+        result['lookup_function'] = lambda x: cls.prototype['lookup_function'](x[0], x[1], vine_settings_list, randround_settings_list)
+        result['alg_variant'] = name
+        return result
+
+    # @classmethod
+    # def get_specific_vine_name(cls, vine_settings):
+    #     vine.ViNESettingsFactory.check_vine_settings(vine_settings)
+    #     is_splittable = vine_settings.edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE
+    #     is_load_balanced_objective = (
+    #             vine_settings.lp_objective in
+    #             [vine.ViNELPObjective.ViNE_LB_DEF, vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS]
+    #     )
+    #     is_scenario_cost_objective = (
+    #             vine_settings.lp_objective in
+    #             [vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS, vine.ViNELPObjective.ViNE_COSTS_INCL_SCENARIO_COSTS]
+    #     )
+    #     is_random_rounding_procedure = vine_settings.rounding_procedure == vine.ViNERoundingProcedure.RANDOMIZED
+    #     return "vine_{}_{}_{}_{}".format(
+    #         "mcf" if is_splittable else "sp",
+    #         "lb" if is_load_balanced_objective else "cost",
+    #         "scenario" if is_scenario_cost_objective else "def",
+    #         "rand" if is_random_rounding_procedure else "det",
+    #     )
+
+    @classmethod
+    def get_specific_comparison_settings_list_with_names(cls):
+        result = []
+
+        vine_settings_list = get_list_of_vine_settings()
+
+        rr_settings_list = get_list_of_rr_settings()
+
+        result.append((vine_settings_list, rr_settings_list, "vine_ALL_vs_randround_ALL"))
+
+        vine_settings_list_mcf = []
+        vine_settings_list_sp = []
+
+        for vine_settings in vine_settings_list:
+            if vine_settings.edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE:
+                vine_settings_list_mcf.append(vine_settings)
+            else:
+                vine_settings_list_sp.append(vine_settings)
+
+        result.append((vine_settings_list_sp, rr_settings_list, "vine_SP_vs_randround_ALL"))
+        result.append((vine_settings_list_mcf, rr_settings_list, "vine_MCF_vs_randround_ALL"))
+
+        return result
+
+    @classmethod
+    def get_all_hs(cls):
+        return [cls.get_hs(vine_settings_list, rr_settings_list, name) for vine_settings_list, rr_settings_list, name in cls.get_specific_comparison_settings_list_with_names()]
+
+
+def _comparison_profit_best_relative(vine_result, rr_result, vine_settings_list, rr_settings_list):
+    # print vine_result
+    # print rr_result
+    # print vine_settings_list
+    # print rr_settings_list
+    best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in vine_settings_list])
+    best_rr = max([rr_result.profits[rr_settings].max for rr_settings in rr_settings_list])
+    return 100*(best_rr - best_vine) / best_vine
+
+
+def _comparison_profit_absolute(vine_result, rr_result, vine_settings_list, rr_settings_list):
+    best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in vine_settings_list])
+    best_rr = max([rr_result.profits[rr_settings].max for rr_settings in rr_settings_list])
+    return best_rr - best_vine
+
+def _comparison_profit_qualitative_randround_5perc(vine_result, rr_result, vine_settings_list, rr_settings_list):
+    best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in vine_settings_list])
+    best_rr = max([rr_result.profits[rr_settings].max for rr_settings in rr_settings_list])
+    if (best_rr - best_vine)/ best_vine >= 0.05:
+        return 100
+    else:
+        return 0
+
+def _comparison_profit_qualitative_vine_5perc(vine_result, rr_result, vine_settings_list, rr_settings_list):
+    best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in vine_settings_list])
+    best_rr = max([rr_result.profits[rr_settings].max for rr_settings in rr_settings_list])
+    if (best_vine - best_rr)/ best_rr >= 0.05:
+        return 100
+    else:
+        return 0
+
+
+class HSF_Comp_BestProfit(AbstractHeatmapSpecificationVineVsRandRoundFactory):
+
+    prototype = dict(
+        name="Relative Profit: rand round vs vine",
+        filename="comparison_vine_rand_round",
+        vmin=-100,
+        vmax=+100,
+        colorbar_ticks=[x for x in range(-100, 101, 33)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.ComparisonVineRandRound,
+        lookup_function=lambda vine_result, rr_result, vine_settings_list, rr_settings_list : _comparison_profit_best_relative(vine_result,
+                                                                                                                               rr_result,
+                                                                                                                               vine_settings_list,
+                                                                                                                               rr_settings_list)
+    )
+
+class HSF_Comp_QualProfitDiff_RR(AbstractHeatmapSpecificationVineVsRandRoundFactory):
+
+    prototype = dict(
+        name="Qualitative Difference > 5%: Rand Round",
+        filename="qual_diff_5perc_rand_round",
+        vmin=0,
+        vmax=+100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.ComparisonVineRandRound,
+        lookup_function=lambda vine_result, rr_result, vine_settings_list, rr_settings_list : _comparison_profit_qualitative_randround_5perc(vine_result,
+                                                                                                                               rr_result,
+                                                                                                                               vine_settings_list,
+                                                                                                                               rr_settings_list)
+    )
+
+class HSF_Comp_QualProfitDiff_Vine(AbstractHeatmapSpecificationVineVsRandRoundFactory):
+
+    prototype = dict(
+        name="Qualitative Difference > 5%: Vine",
+        filename="qual_diff_5perc_vine",
+        vmin=0,
+        vmax=+100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.ComparisonVineRandRound,
+        lookup_function=lambda vine_result, rr_result, vine_settings_list, rr_settings_list : _comparison_profit_qualitative_vine_5perc(vine_result,
+                                                                                                                               rr_result,
+                                                                                                                               vine_settings_list,
+                                                                                                                               rr_settings_list)
+    )
+
+
+
+global_heatmap_specfications = HSF_RR_MeanProfit.get_all_hs() + \
+                               HSF_Comp_BestProfit.get_all_hs() + \
+                               HSF_Comp_QualProfitDiff_RR.get_all_hs() + \
+                               HSF_Comp_QualProfitDiff_Vine.get_all_hs()
+
+# HSF_Vine_Runtime.get_all_hs() + \
+#                                HSF_Vine_MaxEdgeLoad.get_all_hs() + \
+#                                HSF_Vine_MaxNodeLoad.get_all_hs() + \
+#                                HSF_Vine_MaxLoad.get_all_hs() + \
+#                                HSF_RR_Runtime.get_all_hs() + \
+#                                HSF_RR_MaxNodeLoad.get_all_hs() + \
+#                                HSF_RR_MaxEdgeLoad.get_all_hs() + \
+
 
 
 heatmap_specifications_per_type = {
@@ -485,7 +631,8 @@ heatmap_specifications_per_type = {
         if heatmap_specification['plot_type'] == plot_type_item
     ]
     for plot_type_item in [HeatmapPlotType.ViNE,
-                           HeatmapPlotType.RandRoundSepLPDynVMP]
+                           HeatmapPlotType.RandRoundSepLPDynVMP,
+                           HeatmapPlotType.ComparisonVineRandRound]
 }
 
 """
@@ -529,11 +676,21 @@ heatmap_axes_specification_requests_node_load = dict(
     foldername="AXES_NO_REQ_vs_NODE_RF"
 )
 
+heatmap_axes_specification_treewidth_edge_rf = dict(
+    x_axis_parameter="treewidth",
+    y_axis_parameter="edge_resource_factor",
+    x_axis_title="Treewidth",
+    y_axis_title="Ede Resource Factor",
+    foldername="AXES_TREEWIDTH_vs_EDGE_RF"
+)
+
+
 global_heatmap_axes_specifications = (
     heatmap_axes_specification_requests_edge_load,
     heatmap_axes_specification_requests_treewidth,
     heatmap_axes_specification_resources,
     heatmap_axes_specification_requests_node_load,
+    heatmap_axes_specification_treewidth_edge_rf,
 )
 
 
@@ -994,19 +1151,19 @@ class SingleHeatmapPlotter(AbstractPlotter):
                             vmin=heatmap_metric_specification['vmin'],
                             vmax=heatmap_metric_specification['vmax'])
 
-        # for x_index in range(X.shape[1]):
-        #     for y_index in range(X.shape[0]):
-        #         plt.text(x_index + .5,
-        #                  y_index + .45,
-        #                  X[y_index, x_index],
-        #                  verticalalignment="center",
-        #                  horizontalalignment="center",
-        #                  fontsize=17.5,
-        #                  fontname="Courier New",
-        #                  # family="monospace",
-        #                  color='w',
-        #                  path_effects=[PathEffects.withStroke(linewidth=4, foreground="k")]
-        #                  )
+        for x_index in range(X.shape[1]):
+            for y_index in range(X.shape[0]):
+                plt.text(x_index + .5,
+                         y_index + .45,
+                         X[y_index, x_index],
+                         verticalalignment="center",
+                         horizontalalignment="center",
+                         fontsize=17.5,
+                         fontname="Courier New",
+                         # family="monospace",
+                         color='w',
+                         path_effects=[PathEffects.withStroke(linewidth=4, foreground="k")]
+                         )
 
         if not self.paper_mode:
             fig.colorbar(heatmap, label=heatmap_metric_specification['name'] + ' - mean in blue')
@@ -1057,30 +1214,80 @@ def _construct_filter_specs(scenario_parameter_space_dict, parameter_filter_keys
 
 
 
+class ComparisonHeatmapPlotter(SingleHeatmapPlotter):
 
-def evaluate_baseline_and_randround(datacontainer,
-                                    baseline_algorithm_id,
-                                    baseline_execution_config,
-                                    heatmap_plot_type,
-                                    exclude_generation_parameters=None,
-                                    parameter_filter_keys=None,
-                                    show_plot=False,
-                                    save_plot=True,
-                                    overwrite_existing_files=True,
-                                    forbidden_scenario_ids=None,
-                                    papermode=True,
-                                    maxdepthfilter=2,
-                                    output_path="./",
-                                    output_filetype="png"):
+    def __init__(self,
+                 output_path,
+                 output_filetype,
+                 vine_solution_storage,
+                 vine_algorithm_id,
+                 vine_execution_id,
+                 randround_scenario_solution_storage,
+                 randround_algorithm_id,
+                 randround_execution_id,
+                 heatmap_plot_type,
+                 list_of_axes_specifications = global_heatmap_axes_specifications,
+                 list_of_metric_specifications = None,
+                 show_plot=False,
+                 save_plot=True,
+                 overwrite_existing_files=False,
+                 forbidden_scenario_ids=None,
+                 paper_mode=True
+                 ):
+        super(ComparisonHeatmapPlotter, self).__init__(output_path,
+                                                       output_filetype,
+                                                       vine_solution_storage,
+                                                       vine_algorithm_id,
+                                                       vine_execution_id,
+                                                       heatmap_plot_type,
+                                                       list_of_axes_specifications,
+                                                       list_of_metric_specifications,
+                                                       show_plot,
+                                                       save_plot,
+                                                       overwrite_existing_files,
+                                                       forbidden_scenario_ids,
+                                                       paper_mode)
+        self.randround_scenario_solution_storage = randround_scenario_solution_storage
+        self.randround_algorithm_id = randround_algorithm_id
+        self.randround_execution_id = randround_execution_id
+
+        if heatmap_plot_type != HeatmapPlotType.ComparisonVineRandRound:
+            raise RuntimeError("Only comparison heatmap plots are allowed")
+
+    def _lookup_solutions(self, scenario_ids):
+        return [(self.scenario_solution_storage.get_solutions_by_scenario_index(x)[self.algorithm_id][self.execution_id],
+                 self.randround_scenario_solution_storage.get_solutions_by_scenario_index(x)[self.randround_algorithm_id][self.randround_execution_id])
+                for x in scenario_ids]
+
+
+def evaluate_vine_and_randround(dc_vine,
+                                vine_algorithm_id,
+                                vine_execution_id,
+                                dc_randround,
+                                randround_algorithm_id,
+                                randround_execution_id,
+                                exclude_generation_parameters=None,
+                                parameter_filter_keys=None,
+                                show_plot=False,
+                                save_plot=True,
+                                overwrite_existing_files=True,
+                                forbidden_scenario_ids=None,
+                                papermode=True,
+                                maxdepthfilter=2,
+                                output_path="./",
+                                output_filetype="png"):
     """ Main function for evaluation, creating plots and saving them in a specific directory hierarchy.
     A large variety of plots is created. For heatmaps, a generic plotter is used while for general
     comparison plots (ECDF and scatter) an own class is used. The plots that shall be generated cannot
     be controlled at the moment but the respective plotters can be easily adjusted.
 
     :param heatmap_plot_type:
-    :param datacontainer: unpickled datacontainer of baseline experiments (e.g. MIP)
-    :param baseline_algorithm_id: algorithm id of the baseline algorithm
-    :param baseline_execution_config: execution config (numeric) of the baseline algorithm execution
+    :param dc_vine: unpickled datacontainer of vine experiments
+    :param vine_algorithm_id: algorithm id of the vine algorithm
+    :param vine_execution_id: execution config (numeric) of the vine algorithm execution
+    :param dc_randround: unpickled datacontainer of randomized rounding experiments
+    :param randround_algorithm_id: algorithm id of the randround algorithm
+    :param randround_execution_id: execution config (numeric) of the randround algorithm execution
     :param exclude_generation_parameters:   specific generation parameters that shall be excluded from the evaluation.
                                             These won't show in the plots and will also not be shown on axis labels etc.
     :param parameter_filter_keys:   name of parameters according to which the results shall be filtered
@@ -1101,10 +1308,12 @@ def evaluate_baseline_and_randround(datacontainer,
     if exclude_generation_parameters is not None:
         for key, values_to_exclude in exclude_generation_parameters.iteritems():
             parameter_filter_path, parameter_values = extract_parameter_range(
-                datacontainer.scenario_parameter_container.scenarioparameter_room, key)
+                dc_vine.scenario_parameter_container.scenarioparameter_room, key)
 
-            parameter_dicts_baseline = lookup_scenario_parameter_room_dicts_on_path(
-                datacontainer.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
+            parameter_dicts_vine = lookup_scenario_parameter_room_dicts_on_path(
+                dc_vine.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
+            parameter_dicts_randround = lookup_scenario_parameter_room_dicts_on_path(
+                dc_randround.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
 
             for value_to_exclude in values_to_exclude:
 
@@ -1115,15 +1324,17 @@ def evaluate_baseline_and_randround(datacontainer,
 
                 # add respective scenario ids to the set of forbidden scenario ids
                 forbidden_scenario_ids.update(set(lookup_scenarios_having_specific_values(
-                    datacontainer.scenario_parameter_container.scenario_parameter_dict, parameter_filter_path, value_to_exclude)))
+                    dc_vine.scenario_parameter_container.scenario_parameter_dict, parameter_filter_path, value_to_exclude)))
 
             # remove the respective values from the scenario parameter room such that these are not considered when
             # constructing e.g. axes
-            parameter_dicts_baseline[-1][key] = [value for value in parameter_dicts_baseline[-1][key] if
+            parameter_dicts_vine[-1][key] = [value for value in parameter_dicts_vine[-1][key] if
                                                  value not in values_to_exclude]
+            parameter_dicts_randround[-1][key] = [value for value in parameter_dicts_randround[-1][key] if
+                                                  value not in values_to_exclude]
 
     if parameter_filter_keys is not None:
-        filter_specs = _construct_filter_specs(datacontainer.scenario_parameter_container.scenarioparameter_room,
+        filter_specs = _construct_filter_specs(dc_vine.scenario_parameter_container.scenarioparameter_room,
                                                parameter_filter_keys,
                                                maxdepth=maxdepthfilter)
     else:
@@ -1132,19 +1343,51 @@ def evaluate_baseline_and_randround(datacontainer,
     plotters = []
     # initialize plotters for each valid vine setting...
 
-    baseline_plotter = SingleHeatmapPlotter(output_path=output_path,
+    vine_plotter = SingleHeatmapPlotter(output_path=output_path,
                                             output_filetype=output_filetype,
-                                            scenario_solution_storage=datacontainer,
-                                            algorithm_id=baseline_algorithm_id,
-                                            execution_id=baseline_execution_config,
-                                            heatmap_plot_type=heatmap_plot_type,
+                                            scenario_solution_storage=dc_vine,
+                                            algorithm_id=vine_algorithm_id,
+                                            execution_id=vine_execution_id,
+                                            heatmap_plot_type=HeatmapPlotType.ViNE,
                                             show_plot=show_plot,
                                             save_plot=save_plot,
                                             overwrite_existing_files=overwrite_existing_files,
                                             forbidden_scenario_ids=forbidden_scenario_ids,
                                             paper_mode=papermode)
 
-    plotters.append(baseline_plotter)
+    plotters.append(vine_plotter)
+
+    randround_plotter = SingleHeatmapPlotter(output_path=output_path,
+                                             output_filetype=output_filetype,
+                                             scenario_solution_storage=dc_randround,
+                                             algorithm_id=randround_algorithm_id,
+                                             execution_id=randround_execution_id,
+                                             heatmap_plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+                                             show_plot=show_plot,
+                                             save_plot=save_plot,
+                                             overwrite_existing_files=overwrite_existing_files,
+                                             forbidden_scenario_ids=forbidden_scenario_ids,
+                                             paper_mode=papermode)
+
+    plotters.append(randround_plotter)
+
+    comparison_plotter = ComparisonHeatmapPlotter(output_path=output_path,
+                                                  output_filetype=output_filetype,
+                                                  vine_solution_storage=dc_vine,
+                                                  vine_algorithm_id=vine_algorithm_id,
+                                                  vine_execution_id=vine_execution_id,
+                                                  randround_scenario_solution_storage=dc_randround,
+                                                  randround_algorithm_id=randround_algorithm_id,
+                                                  randround_execution_id=randround_execution_id,
+                                                  heatmap_plot_type=HeatmapPlotType.ComparisonVineRandRound,
+                                                  show_plot=show_plot,
+                                                  save_plot=save_plot,
+                                                  overwrite_existing_files=overwrite_existing_files,
+                                                  forbidden_scenario_ids=forbidden_scenario_ids,
+                                                  paper_mode=papermode)
+
+    plotters.append(comparison_plotter)
+
 
     for filter_spec in filter_specs:
         for plotter in plotters:
