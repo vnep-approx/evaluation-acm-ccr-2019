@@ -245,68 +245,36 @@ class AbstractHeatmapSpecificationVineFactory(object):
     def get_all_hs(cls):
         return [cls.get_hs(vine_settings_list, name) for vine_settings_list, name in cls.get_all_vine_settings_list_with_names()]
 
+
+def compute_aggregated_mean(list_of_aggregated_data, debug=False):
+    mean = 0.0
+    value_count = 0
+    for agg in list_of_aggregated_data:
+        mean += agg.mean * agg.value_count
+        value_count += agg.value_count
+    if debug:
+        print len(list_of_aggregated_data), value_count, mean/value_count
+    return mean / value_count
+
+
+
 class HSF_Vine_Runtime(AbstractHeatmapSpecificationVineFactory):
 
     prototype = dict(
         name="ViNE: Mean Runtime [s]",
         filename="mean_runtime",
         vmin=0,
-        vmax=11,
+        vmax=20,
         alg_variant=None,
         colorbar_ticks=[x for x in range(0, 11, 20)],
         cmap="Greys",
         plot_type=HeatmapPlotType.ViNE,
-        lookup_function=lambda vine_result_dict, vine_settings_list: np.average([
+        lookup_function=lambda vine_result_dict, vine_settings_list: compute_aggregated_mean([
             vine_result.total_runtime
-            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+            for vine_settings in vine_settings_list
+            for vine_result in vine_result_dict[vine_settings]
         ]),
         rounding_function=lambda x: int(round(x)),
-    )
-
-class HSF_Vine_EmbeddingRatio(AbstractHeatmapSpecificationVineFactory):
-
-    prototype = dict(
-        name="ViNE: Acceptance Ratio [%]",
-        filename="embedding_ratio",
-        vmin=0.0,
-        vmax=100.0,
-        colorbar_ticks=[x for x in range(0, 101, 20)],
-        cmap="Greens",
-        plot_type=HeatmapPlotType.ViNE,
-        lookup_function=lambda vine_result_dict, vine_settings_list: 100 * np.average([
-            vine_result.embedding_ratio
-            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
-        ]),
-    )
-
-class HSF_Vine_AvgNodeLoad(AbstractHeatmapSpecificationVineFactory):
-    prototype = dict(
-        name="ViNE: Avg. Node Load [%]",
-        filename="avg_node_load",
-        vmin=0.0,
-        vmax=100,
-        colorbar_ticks=[x for x in range(0, 100, 10)],
-        cmap="Oranges",
-        plot_type=HeatmapPlotType.ViNE,
-        lookup_function=lambda vine_result_dict, vine_settings_list: np.average([
-            compute_average_node_load(vine_result)
-            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
-        ]),
-    )
-
-class HSF_Vine_AvgEdgeLoad(AbstractHeatmapSpecificationVineFactory):
-    prototype = dict(
-        name="ViNE: Avg. Edge Load [%]",
-        filename="avg_edge_load",
-        vmin=0.0,
-        vmax=100,
-        colorbar_ticks=[x for x in range(0, 100, 10)],
-        cmap="Purples",
-        plot_type=HeatmapPlotType.ViNE,
-        lookup_function=lambda vine_result_dict, vine_settings_list: np.average([
-            compute_average_edge_load(vine_result)
-            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
-        ]),
     )
 
 
@@ -320,8 +288,9 @@ class HSF_Vine_MaxNodeLoad(AbstractHeatmapSpecificationVineFactory):
         cmap="Oranges",
         plot_type=HeatmapPlotType.ViNE,
         lookup_function=lambda vine_result_dict, vine_settings_list: max(
-            compute_max_node_load(vine_result)
-            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+            vine_result.max_node_load.max
+            for vine_settings in vine_settings_list
+            for vine_result in vine_result_dict[vine_settings]
         )
     )
 
@@ -336,8 +305,9 @@ class HSF_Vine_MaxEdgeLoad(AbstractHeatmapSpecificationVineFactory):
         cmap="Purples",
         plot_type=HeatmapPlotType.ViNE,
         lookup_function=lambda vine_result_dict, vine_settings_list: max(
-            compute_max_edge_load(vine_result)
-            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+            vine_result.max_edge_load.max
+            for vine_settings in vine_settings_list
+            for vine_result in vine_result_dict[vine_settings]
         )
     )
 
@@ -352,8 +322,9 @@ class HSF_Vine_MaxLoad(AbstractHeatmapSpecificationVineFactory):
         cmap="Reds",
         plot_type=HeatmapPlotType.ViNE,
         lookup_function=lambda vine_result_dict, vine_settings_list: max(
-            compute_max_load(vine_result)
-            for vine_settings in vine_settings_list for vine_result in vine_result_dict[vine_settings]
+            max(vine_result.max_node_load.max, vine_result.max_edge_load.max)
+            for vine_settings in vine_settings_list
+            for vine_result in vine_result_dict[vine_settings]
         )
     )
 
@@ -499,14 +470,9 @@ class HSF_RR_Runtime(AbstractHeatmapSpecificationSepLPRRFactory):
 
 
 global_heatmap_specfications = HSF_Vine_Runtime.get_all_hs() + \
-                               HSF_Vine_EmbeddingRatio.get_all_hs() + \
-                               HSF_Vine_AvgEdgeLoad.get_all_hs() + \
-                               HSF_Vine_AvgNodeLoad.get_all_hs() + \
                                HSF_Vine_MaxEdgeLoad.get_all_hs() + \
                                HSF_Vine_MaxNodeLoad.get_all_hs() + \
                                HSF_Vine_MaxLoad.get_all_hs() + \
-                               HSF_Vine_AvgEdgeLoad.get_all_hs() + \
-                               HSF_Vine_AvgEdgeLoad.get_all_hs() + \
                                HSF_RR_Runtime.get_all_hs() + \
                                HSF_RR_MaxNodeLoad.get_all_hs() + \
                                HSF_RR_MaxEdgeLoad.get_all_hs() + \
@@ -636,7 +602,26 @@ def get_title_for_filter_specifications(filter_specifications):
     return result[:-2]
 
 
-def extract_parameter_range(scenario_parameter_space_dict, key, min_recursion_depth=0):
+def extract_parameter_range(scenario_parameter_space, key):
+    # if the scenario parameter container was merged with another, the parameter space is a list of dicts
+    # we iterate over all of these parameter subspaces and collect all values matching the parameter
+    if not isinstance(scenario_parameter_space, list):
+        scenario_parameter_space = [scenario_parameter_space]
+    path = None
+    values = set()
+    for sps in scenario_parameter_space:
+        new_path, new_values = _extract_parameter_range(
+            sps, key, min_recursion_depth=2
+        )
+        if path is None:
+            path = new_path
+        else:
+            assert path == new_path  # this should usually not happen unless we merged incompatible parameter containers
+        values = values.union(new_values)
+    return path, sorted(values)
+
+
+def _extract_parameter_range(scenario_parameter_space_dict, key, min_recursion_depth=0):
     if not isinstance(scenario_parameter_space_dict, dict):
         return None
     for generator_name, value in scenario_parameter_space_dict.iteritems():
@@ -646,12 +631,12 @@ def extract_parameter_range(scenario_parameter_space_dict, key, min_recursion_de
             if len(value) != 1:
                 continue
             value = value[0]
-            result = extract_parameter_range(value, key, min_recursion_depth=min_recursion_depth - 1)
+            result = _extract_parameter_range(value, key, min_recursion_depth=min_recursion_depth - 1)
             if result is not None:
                 path, values = result
                 return [generator_name, 0] + path, values
         elif isinstance(value, dict):
-            result = extract_parameter_range(value, key, min_recursion_depth=min_recursion_depth - 1)
+            result = _extract_parameter_range(value, key, min_recursion_depth=min_recursion_depth - 1)
             if result is not None:
                 path, values = result
                 return [generator_name] + path, values
@@ -924,12 +909,10 @@ class SingleHeatmapPlotter(AbstractPlotter):
         path_x_axis, xaxis_parameters = extract_parameter_range(
             sps,
             heatmap_axes_specification['x_axis_parameter'],
-            min_recursion_depth=2,
         )
         path_y_axis, yaxis_parameters = extract_parameter_range(
             sps,
             heatmap_axes_specification['y_axis_parameter'],
-            min_recursion_depth=2,
         )
 
         # for heatmap plot
@@ -958,8 +941,8 @@ class SingleHeatmapPlotter(AbstractPlotter):
 
                 solutions = self._lookup_solutions(scenario_ids_to_consider)
 
-                for solution in solutions:
-                    print solution
+                # for solution in solutions:
+                #     print solution
 
                 values = [heatmap_metric_specification['lookup_function'](solution)
                           for solution in solutions]
@@ -996,6 +979,7 @@ class SingleHeatmapPlotter(AbstractPlotter):
             ax.set_title(heatmap_metric_specification['name'], fontsize=17)
         else:
             title = heatmap_metric_specification['name'] + "\n"
+            title += heatmap_metric_specification['alg_variant'] + "\n"
             if filter_specifications:
                 title += get_title_for_filter_specifications(filter_specifications) + "\n"
             title += solution_count_string + "\n"
@@ -1010,19 +994,19 @@ class SingleHeatmapPlotter(AbstractPlotter):
                             vmin=heatmap_metric_specification['vmin'],
                             vmax=heatmap_metric_specification['vmax'])
 
-        for x_index in range(X.shape[1]):
-            for y_index in range(X.shape[0]):
-                plt.text(x_index + .5,
-                         y_index + .45,
-                         X[y_index, x_index],
-                         verticalalignment="center",
-                         horizontalalignment="center",
-                         fontsize=17.5,
-                         fontname="Courier New",
-                         # family="monospace",
-                         color='w',
-                         path_effects=[PathEffects.withStroke(linewidth=4, foreground="k")]
-                         )
+        # for x_index in range(X.shape[1]):
+        #     for y_index in range(X.shape[0]):
+        #         plt.text(x_index + .5,
+        #                  y_index + .45,
+        #                  X[y_index, x_index],
+        #                  verticalalignment="center",
+        #                  horizontalalignment="center",
+        #                  fontsize=17.5,
+        #                  fontname="Courier New",
+        #                  # family="monospace",
+        #                  color='w',
+        #                  path_effects=[PathEffects.withStroke(linewidth=4, foreground="k")]
+        #                  )
 
         if not self.paper_mode:
             fig.colorbar(heatmap, label=heatmap_metric_specification['name'] + ' - mean in blue')
