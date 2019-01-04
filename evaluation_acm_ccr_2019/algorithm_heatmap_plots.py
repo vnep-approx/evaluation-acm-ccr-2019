@@ -93,6 +93,8 @@ def get_list_of_vine_settings():
     ):
         if lp_objective == vine.ViNELPObjective.ViNE_LB_INCL_SCENARIO_COSTS or lp_objective == vine.ViNELPObjective.ViNE_COSTS_INCL_SCENARIO_COSTS:
             continue
+        if edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE:
+            continue
         result.append(vine.ViNESettingsFactory.get_vine_settings(
             edge_embedding_model=edge_embedding_model,
             lp_objective=lp_objective,
@@ -664,7 +666,7 @@ class HSF_Comp_RelProfitToLPBound_Vine(AbstractHeatmapSpecificationVineVsRandRou
         vmin=-24,
         vmax=+24,
         colorbar_ticks=[x for x in range(-24, 24, 6)],
-        cmap="RdBu",
+        cmap="PuOr",
         plot_type=HeatmapPlotType.ComparisonVineRandRound,
         lookup_function=lambda vine_result, rr_result, vine_settings_list, rr_settings_list : _relative_profit_difference_to_lp_bound(vine_result,
                                                                                                                                       rr_result,
@@ -1007,8 +1009,9 @@ class AbstractPlotter(object):
         spd = self.scenario_parameter_dict
         return lookup_scenarios_having_specific_values(spd, axis_path, axis_value)
 
-    def _show_and_or_save_plots(self, output_path, filename):
-        plt.tight_layout()
+    def _show_and_or_save_plots(self, output_path, filename, perform_tight_layout=True):
+        if perform_tight_layout:
+            plt.tight_layout()
         if self.save_plot:
             if not os.path.exists(output_path):
                 os.makedirs(output_path)
@@ -1328,6 +1331,318 @@ class ComparisonHeatmapPlotter(SingleHeatmapPlotter):
                 for x in scenario_ids]
 
 
+class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
+
+    def __init__(self,
+                 output_path,
+                 output_filetype,
+                 vine_solution_storage,
+                 vine_algorithm_id,
+                 vine_execution_id,
+                 randround_solution_storage,
+                 randround_algorithm_id,
+                 randround_execution_id,
+                 show_plot=False,
+                 save_plot=True,
+                 overwrite_existing_files=False,
+                 forbidden_scenario_ids=None,
+                 paper_mode=True,
+                 vine_settings_to_consider=None,
+                 rr_settings_to_consider=None
+                 ):
+        super(ComparisonBaselineVsRRT_Scatter_and_ECDF, self).__init__(output_path, output_filetype, vine_solution_storage,
+                                                                       vine_algorithm_id, vine_execution_id, show_plot, save_plot,
+                                                                       overwrite_existing_files, forbidden_scenario_ids, paper_mode)
+        self.randround_solution_storage = randround_solution_storage
+        self.randround_algorithm_id = randround_algorithm_id
+        self.randround_execution_id = randround_execution_id
+
+        filter_path_number_of_requests, list_number_of_requests = extract_parameter_range(self.scenarioparameter_room,
+                                                                                          "number_of_requests")
+
+        self._number_of_requests_list = list_number_of_requests
+        self._filter_path_number_of_requests = filter_path_number_of_requests
+
+        filter_path_edge_rf, list_edge_rfs = extract_parameter_range(self.scenarioparameter_room,
+                                                                                          "edge_resource_factor")
+
+        self._edge_rfs_list = list_edge_rfs
+        self._filter_path_edge_rf = filter_path_edge_rf
+
+        self.vine_settings_to_consider = vine_settings_to_consider
+        self.rr_settings_to_consider = rr_settings_to_consider
+
+        if self.vine_settings_to_consider is None:
+            self.vine_settings_to_consider = get_list_of_vine_settings()
+
+        if self.rr_settings_to_consider is None:
+            self.rr_settings_to_consider = get_list_of_rr_settings()
+
+
+    def _lookup_vine_solution(self, scenario_id):
+        return self.scenario_solution_storage.get_solutions_by_scenario_index(scenario_id)[self.algorithm_id][self.execution_id]
+
+    def _lookup_randround_solution(self, scenario_id):
+        return self.randround_solution_storage.get_solutions_by_scenario_index(scenario_id)[self.randround_algorithm_id][self.randround_execution_id]
+
+    def _compute_profit_best_rr_div_best_vine(self, vine_result, rr_result):
+        best_rr = max([rr_result.profits[rr_settings].max for rr_settings in self.rr_settings_to_consider])
+        best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in self.vine_settings_to_consider])
+        return best_rr / best_vine
+
+    def compute_relative_profits_arrays(self, list_of_scenarios):
+
+        result = {edge_rf :
+                      {number_of_requests: None
+                       for number_of_requests in self._number_of_requests_list}
+                  for edge_rf in self._edge_rfs_list
+                  }
+
+        for edge_rf in self._edge_rfs_list:
+            for number_of_requests in self._number_of_requests_list:
+                scenario_ids_with_right_edge_rf = self._obtain_scenarios_based_on_filters([{"parameter": "edge_resource_factor", "value": edge_rf}])
+                scenario_ids_with_right_number_requests = self._obtain_scenarios_based_on_filters([{"parameter": "number_of_requests", "value": number_of_requests}])
+                scenario_ids_to_consider = set(list_of_scenarios)
+                scenario_ids_to_consider &= scenario_ids_with_right_edge_rf
+                scenario_ids_to_consider &= scenario_ids_with_right_number_requests
+                result[edge_rf][number_of_requests] = np.full(len(scenario_ids_to_consider), np.NaN)
+                for i, scenario_id in enumerate(scenario_ids_to_consider):
+                    vine_result = self._lookup_vine_solution(scenario_id)
+                    rr_result = self._lookup_randround_solution(scenario_id)
+                    result[edge_rf][number_of_requests][i] = self._compute_profit_best_rr_div_best_vine(vine_result, rr_result)
+
+        return result
+
+
+
+    def plot_figure(self, filter_specifications):
+        self.plot_profit_ecdf(filter_specifications)
+
+    def plot_profit_ecdf(self, filter_specifications):
+
+        output_filename = "ECDF_profit"
+
+        output_path, filename = self._construct_output_path_and_filename(output_filename,
+                                                                         filter_specifications)
+
+        logger.debug("output_path is {};\t filename is {}".format(output_path, filename))
+
+        if not self.overwrite_existing_files and os.path.exists(filename):
+            logger.info("Skipping generation of {} as this file already exists".format(filename))
+            return
+
+        if filter_specifications:
+            for filter_specification in filter_specifications:
+                if filter_specification["parameter"] == "number_of_requests":
+                    logger.info("Skipping generation of {} as this conflicts with the filter specification {}".format(
+                        output_filename, filter_specification))
+                    return
+
+        scenario_ids = self._obtain_scenarios_based_on_filters(filter_specifications)
+
+        if self.forbidden_scenario_ids:
+            scenario_ids = scenario_ids - self.forbidden_scenario_ids
+
+        result = self.compute_relative_profits_arrays(scenario_ids)
+        print result
+
+        fix, axs = plt.subplots(nrows=2, figsize=(5, 4), sharex="col")
+        # ax.set_xscale("log", basex=10)
+
+        #colors_erf = ['k', 'g', 'b', 'r', 'y']
+        colors_erf = [plt.cm.inferno(val) for val in [0.8,0.6,0.4,0.2,0.0]]
+        max_observed_value = 0
+
+        linestyles = [":", "-.", "--", "-"]
+
+        number_requests_legend_handlers = []
+        erf_legend_handlers = []
+
+        for j, number_of_requests_list in enumerate([[40, 60], [80, 100]]):
+
+            for i, erf in enumerate(self._edge_rfs_list):
+
+                result_slice = np.zeros(0)
+
+                for number_of_requests in number_of_requests_list:
+                    result_slice = np.concatenate((result_slice, result[erf][number_of_requests]))
+
+                sorted_data = np.sort(result_slice[~np.isnan(result_slice)])
+                max_observed_value = np.maximum(max_observed_value, sorted_data[-1])
+                yvals = np.arange(1, len(sorted_data) + 1) / float(len(sorted_data))
+                axs[j].plot(sorted_data, yvals, color=colors_erf[i], alpha=0.8, linestyle="-",
+                        label="{} {}".format(erf, number_of_requests_list), linewidth=2.8)
+
+                # if j == 0:
+                #     number_requests_legend_handlers.append(
+                #         matplotlib.lines.Line2D([], [], color='gray', linestyle=linestyles[j+2],
+                #                                 label='{}'.format(number_of_requests_list)))
+
+                if j == 0:
+                    erf_legend_handlers.append(matplotlib.lines.Line2D([], [], color=colors_erf[i], linestyle="-", linewidth=2.4,
+                                                               label='{}'.format(erf)))
+
+                ax = axs[j]
+
+                ax.set_title("#Requests: {} & {}".format(number_of_requests_list[0],number_of_requests_list[1]), fontsize=15)
+                ax.set_ylabel("ECDF", fontsize=14)
+                ax.grid(True, which="both", linestyle=":")
+                ax.set_xlim(0.2,2)
+
+                major_x = [0.4, 0.7, 1.0, 1.3, 1.6,1.9]
+                minor_x = [0.25, 0.55, 0.85, 1.15, 1.45, 1.75]
+                ax.set_xticks(major_x, minor=False)
+                ax.set_xticks(minor_x, minor=True)
+                for x in major_x:
+                    ax.axvline(x, linestyle=':', color='gray', alpha=0.4, linewidth=0.8)
+
+                major_y = [0, 0.25, 0.5, 0.75, 1.0]
+
+                ax.set_yticks(major_y, minor=False)
+
+                for tick in ax.xaxis.get_major_ticks():
+                    tick.label.set_fontsize(14)
+                for tick in ax.yaxis.get_major_ticks():
+                    tick.label.set_fontsize(14)
+
+                if j == 1:
+                    ax.set_xlabel("profit(RR) / profit(ViNE)", fontsize=14)
+
+        fix.subplots_adjust(top=0.825)
+        fix.subplots_adjust(bottom=0.15)
+        fix.subplots_adjust(right=0.78)
+        fix.subplots_adjust(hspace=0.3)
+        fix.subplots_adjust(left=0.18)
+
+        first_legend = plt.legend(handles=erf_legend_handlers, title="ERF", loc=4, fontsize=14,
+                                  handletextpad=0.35, bbox_to_anchor=(1,0.25), bbox_transform = plt.gcf().transFigure,
+             borderaxespad=0.175, borderpad=0.2)
+        plt.setp(first_legend.get_title(), fontsize='15')
+        plt.gca().add_artist(first_legend)
+
+
+        plt.setp(axs[0].get_xticklabels(), visible=True)
+
+        # o_leg = plt.legend(handles=number_requests_legend_handlers, loc=2, title="#Requests", fontsize=14,
+        #                    handletextpad=.35, borderaxespad=0.175, borderpad=0.2)
+        # plt.setp(o_leg.get_title(), fontsize='15')
+
+        plt.suptitle("Relative Profit", fontsize=17)
+        #ax.set_xlabel("rel profit$)", fontsize=16)
+
+
+        # for tick in ax.xaxis.get_major_ticks():
+        #     tick.label.set_fontsize(15.5)
+        # for tick in ax.yaxis.get_major_ticks():
+        #     tick.label.set_fontsize(15.5)
+
+        # ax.set_xticks([ 1, 1.5, 2, 2.5, 3, 3.5], minor=False)
+        # ax.set_xticks([0.75, 1.25, 1.5, 1.75, 2.25, 2.5, 2.75, 3.25, 3.5], minor=True)
+        # ax.set_yticks([x*0.1 for x in range(1,10)], minor=True)
+        # ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+
+        # ax.set_xticklabels([], minor=True)
+
+
+
+        # gridlines = ax.get_xgridlines() + ax.get_ygridlines()
+        # for line in gridlines:
+        #     line.set_linestyle(':')
+
+        self._show_and_or_save_plots(output_path, filename, perform_tight_layout=False)
+
+    def plot_profit_ecdf_old(self, filter_specifications):
+
+        output_filename = "ECDF_profit"
+
+        output_path, filename = self._construct_output_path_and_filename(output_filename,
+                                                                         filter_specifications)
+
+        logger.debug("output_path is {};\t filename is {}".format(output_path, filename))
+
+        if not self.overwrite_existing_files and os.path.exists(filename):
+            logger.info("Skipping generation of {} as this file already exists".format(filename))
+            return
+
+        if filter_specifications:
+            for filter_specification in filter_specifications:
+                if filter_specification["parameter"] == "number_of_requests":
+                    logger.info("Skipping generation of {} as this conflicts with the filter specification {}".format(
+                        output_filename, filter_specification))
+                    return
+
+        scenario_ids = self._obtain_scenarios_based_on_filters(filter_specifications)
+
+        if self.forbidden_scenario_ids:
+            scenario_ids = scenario_ids - self.forbidden_scenario_ids
+
+        result = self.compute_relative_profits_arrays(scenario_ids)
+        print result
+
+        fix, ax = plt.subplots(figsize=(5, 4))
+        # ax.set_xscale("log", basex=10)
+
+        colors_erf = ['k', 'g', 'b', 'r', 'y']
+        max_observed_value = 0
+
+        linestyles = [":", "-.", "--", "-"]
+
+        number_requests_legend_handlers = []
+        erf_legend_handlers = []
+
+        for i, erf in enumerate(self._edge_rfs_list):
+
+            previous_slice = None
+
+            for j, number_of_requests in enumerate(self._number_of_requests_list):
+
+                result_slice = result[erf][number_of_requests]
+                sorted_data = np.sort(result_slice[~np.isnan(result_slice)])
+                max_observed_value = np.maximum(max_observed_value, sorted_data[-1])
+                yvals = np.arange(1, len(sorted_data) + 1) / float(len(sorted_data))
+                ax.plot(sorted_data, yvals, color=colors_erf[i], linestyle=linestyles[j],
+                        label="{} {}".format(erf, number_of_requests), linewidth=1.8)
+
+                if i == 0:
+                    number_requests_legend_handlers.append(
+                        matplotlib.lines.Line2D([], [], color='gray', linestyle=linestyles[j],
+                                                label='|req|: {}'.format(number_of_requests)))
+
+            erf_legend_handlers.append(matplotlib.lines.Line2D([], [], color=colors_erf[i], linestyle="-",
+                                                               label='ERF: {}'.format(erf)))
+
+        first_legend = plt.legend(title="", handles=erf_legend_handlers, loc=(0.225, 0.0125), fontsize=14,
+                                  handletextpad=0.35, borderaxespad=0.175, borderpad=0.2)
+        plt.setp(first_legend.get_title(), fontsize='15')
+        plt.gca().add_artist(first_legend)
+        o_leg = plt.legend(handles=number_requests_legend_handlers, loc=4, title="#Requests", fontsize=14,
+                           handletextpad=.35, borderaxespad=0.175, borderpad=0.2)
+        plt.setp(o_leg.get_title(), fontsize='15')
+
+        ax.set_title("FOO", fontsize=17)
+        ax.set_xlabel("rel profit$)", fontsize=16)
+        ax.set_ylabel("ECDF", fontsize=16)
+
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(15.5)
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(15.5)
+
+        # ax.set_xticks([ 1, 1.5, 2, 2.5, 3, 3.5], minor=False)
+        # ax.set_xticks([0.75, 1.25, 1.5, 1.75, 2.25, 2.5, 2.75, 3.25, 3.5], minor=True)
+        # ax.set_yticks([x*0.1 for x in range(1,10)], minor=True)
+        # ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+
+        # ax.set_xticklabels([], minor=True)
+
+        ax.grid(True, which="both", linestyle=":")
+
+        # gridlines = ax.get_xgridlines() + ax.get_ygridlines()
+        # for line in gridlines:
+        #     line.set_linestyle(':')
+
+        self._show_and_or_save_plots(output_path, filename)
+
 
 def evaluate_vine_and_randround(dc_vine,
                                 vine_algorithm_id,
@@ -1424,7 +1739,7 @@ def evaluate_vine_and_randround(dc_vine,
                                             forbidden_scenario_ids=forbidden_scenario_ids,
                                             paper_mode=papermode)
 
-    plotters.append(vine_plotter)
+    #plotters.append(vine_plotter)
 
     randround_plotter = SingleHeatmapPlotter(output_path=output_path,
                                              output_filetype=output_filetype,
@@ -1438,7 +1753,7 @@ def evaluate_vine_and_randround(dc_vine,
                                              forbidden_scenario_ids=forbidden_scenario_ids,
                                              paper_mode=papermode)
 
-    plotters.append(randround_plotter)
+    #plotters.append(randround_plotter)
 
     comparison_plotter = ComparisonHeatmapPlotter(output_path=output_path,
                                                   output_filetype=output_filetype,
@@ -1455,7 +1770,23 @@ def evaluate_vine_and_randround(dc_vine,
                                                   forbidden_scenario_ids=forbidden_scenario_ids,
                                                   paper_mode=papermode)
 
-    plotters.append(comparison_plotter)
+    #plotters.append(comparison_plotter)
+
+    ecdf_plotter = ComparisonBaselineVsRRT_Scatter_and_ECDF(output_path=output_path,
+                                                            output_filetype=output_filetype,
+                                                            vine_solution_storage=dc_vine,
+                                                            vine_algorithm_id=vine_algorithm_id,
+                                                            vine_execution_id=vine_execution_id,
+                                                            randround_solution_storage=dc_randround,
+                                                            randround_algorithm_id=randround_algorithm_id,
+                                                            randround_execution_id=randround_execution_id,
+                                                            show_plot=show_plot,
+                                                            save_plot=save_plot,
+                                                            overwrite_existing_files=overwrite_existing_files,
+                                                            forbidden_scenario_ids=forbidden_scenario_ids,
+                                                            paper_mode=papermode)
+
+    plotters.append(ecdf_plotter)
 
 
     for filter_spec in filter_specs:
