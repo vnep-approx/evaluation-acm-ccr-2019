@@ -104,7 +104,7 @@ heatmap_specification_avg_runtime = dict(
     # colorbar_ticks=[x for x in range(0, 5, 2)],
     cmap="inferno",
     plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Average,
-    lookup_function=lambda tw_result: tw_result.runtime_algorithm,
+    lookup_function=lambda tw_result: tw_result.runtime_treewidth_computation,
     metric_filter=lambda obj: (obj >= -0.00001)
 )
 heatmap_specification_max_treewidth = dict(
@@ -126,7 +126,7 @@ heatmap_specification_max_runtime = dict(
     # colorbar_ticks=[x for x in range(0, 21, 2)],
     cmap="inferno",
     plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Max,
-    lookup_function=lambda tw_result: tw_result.runtime_algorithm,
+    lookup_function=lambda tw_result: tw_result.runtime_treewidth_computation,
     metric_filter=lambda obj: (obj >= -0.00001)
 )
 
@@ -156,8 +156,8 @@ heatmap_axes_specification_basic = dict(
     y_axis_parameter="probability",
     x_axis_title="Number of Nodes",
     y_axis_title="Edge Probability",
-    x_axis_ticks=[5, 10, 20, 30, 40, 50],
-    y_axis_ticks=[0.01, 0.1, 0.2, 0.3, 0.4, 0.5],
+    x_axis_ticks=[5, 10, 20, 30, 40, 45],
+    y_axis_ticks=[0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95],
     x_axis_tick_formatting=str,
     y_axis_tick_formatting=lambda val: "{} %".format(int(100 * val)),
     foldername="heatmap"
@@ -182,7 +182,7 @@ boxplot_metric_specification_runtime = dict(
     y_axis_title="Runtime",
     use_log_scale=True,
     plot_type=BoxplotPlotType.Simple_Treewidth_Evaluation_Boxplot,
-    lookup_function=lambda tw_result: tw_result.runtime_algorithm,
+    lookup_function=lambda tw_result: tw_result.runtime_treewidth_computation,
 )
 
 global_boxplot_specfications = [
@@ -239,7 +239,7 @@ decomposition_runtime_plot_metric_specification_runtime = dict(
     y_axis_title="Runtime [s]",
     use_log_scale=True,
     plot_type=DecompositionRuntimePlotType.Simple_Treewidth_Evaluation_DecompositionRuntimePlot,
-    lookup_function=lambda tw_result: tw_result.runtime_algorithm,
+    lookup_function=lambda tw_result: tw_result.runtime_treewidth_computation,
     percentiles=[0, 1, 25, 50, 75, 99, 100],
     linewidths=[0.25, 0.5, 0.5, 2, 0.5, 0.5, 0.25],
     color_values=[0.9, 0.6, 0.3, 0.3, 0.6, 0.9],
