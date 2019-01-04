@@ -10,6 +10,7 @@ import yaml
 from alib import util
 from matplotlib.colors import LogNorm
 from vnep_approx import treewidth_model
+import math
 
 try:
     import cPickle as pickle
@@ -90,7 +91,8 @@ heatmap_specification_avg_treewidth = dict(
     filename="treewidth_avg",
     vmin=1.0,
     vmax=40.0,
-    colorbar_ticks=[1, 5, 10, 20, 40],
+    colorbar_ticks=[1,2, 3, 4, 5, 10, 20, 40],
+    rounding_function= lambda x: round(x),
     cmap="inferno",
     plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Average,
     lookup_function=lambda tw_result: tw_result.treewidth,
@@ -156,8 +158,10 @@ heatmap_axes_specification_basic = dict(
     y_axis_parameter="probability",
     x_axis_title="Number of Nodes",
     y_axis_title="Edge Probability",
-    x_axis_ticks=[5, 10, 20, 30, 40, 45],
-    y_axis_ticks=[0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95],
+    x_axis_ticks=[5,15,25,35,45],
+    x_axis_ticks_minor=[10,20,30,40],
+    y_axis_ticks=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+    y_axis_ticks_minor=[0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95],
     x_axis_tick_formatting=str,
     y_axis_tick_formatting=lambda val: "{} %".format(int(100 * val)),
     foldername="heatmap"
@@ -213,7 +217,7 @@ boxplot_axis_specification_probability = dict(
     x_axis_title="Edge Connection Probability (%)",
     x_axis_ticks=[1, 10, 20, 30, 40, 50],
     filename="probability",
-    x_axis_function=lambda tw_result: tw_result.probability,
+    x_axis_function=lambda tw_result: tw_result.edge_probability,
     box_position_function=lambda x: 100 * x,
     plot_title="undefined"
 )
@@ -269,7 +273,7 @@ decomposition_runtime_plot_axis_specification_probability = dict(
     x_axis_title="Edge Connection Probability (%)",
     x_axis_ticks=[1, 10, 20, 30, 40, 50],
     filename="probability",
-    x_axis_function=lambda tw_result: tw_result.probability,
+    x_axis_function=lambda tw_result: tw_result.edge_probability,
     plot_title="undefined"
 )
 
@@ -491,8 +495,9 @@ class SingleBoxplotPlotter(AbstractPlotter):
         x_axis_function = boxplot_axes_specification["x_axis_function"]
         for num_nodes, prob_results_dict in self.data_dict.iteritems():
             for prob, results in prob_results_dict.iteritems():
+                print "\tprocessing data: {} nodes, prob {}".format(num_nodes, prob)
                 # assert len(results) == self.experiment_parameters["scenario_repetition"]  # sanity check for now
-                logger.debug("values are {}".format(values_dict))
+                # logger.debug("values are {}".format(values_dict))
                 for result in results[::self.sampling_rate]:
                     x_val = x_axis_function(result)
                     if x_val not in values_dict:
@@ -719,8 +724,9 @@ class DecompositionRuntimePlotter(AbstractPlotter):
         x_axis_function = decomposition_runtime_axes_specification["x_axis_function"]
         for num_nodes, prob_results_dict in self.data_dict.iteritems():
             for prob, results in prob_results_dict.iteritems():
+                print "\tprocessing data: {} nodes, prob {}".format(num_nodes, prob)
                 # assert len(results) == self.experiment_parameters["scenario_repetition"]  # sanity check for now
-                logger.debug("values are {}".format(values_dict))
+                #logger.debug("values are {}".format(values_dict))
                 for result in results[::self.sampling_rate]:
                     x_val = x_axis_function(result)
                     if x_val not in values_dict:
@@ -915,6 +921,8 @@ class SingleHeatmapPlotter(AbstractPlotter):
             tick_locations = [xaxis_parameters.index(x) for x in heatmap_axes_specification["x_axis_ticks"]]
             tick_locations = np.array(tick_locations) + 0.5
             ax.set_xticks(tick_locations, minor=False)
+            tick_locations_minor = [xaxis_parameters.index(x) for x in heatmap_axes_specification["x_axis_ticks_minor"]]
+            ax.set_xticks(tick_locations_minor, minor=True)
             x_labels = map(heatmap_axes_specification["x_axis_tick_formatting"], heatmap_axes_specification["x_axis_ticks"])
             ax.set_xticklabels(x_labels, minor=False, fontsize=TICK_LABEL_FONT_SIZE)
         else:
@@ -924,6 +932,8 @@ class SingleHeatmapPlotter(AbstractPlotter):
             tick_locations = [yaxis_parameters.index(x) for x in heatmap_axes_specification["y_axis_ticks"]]
             tick_locations = np.array(tick_locations) + 0.5
             ax.set_yticks(tick_locations, minor=False)
+            tick_locations_minor = [yaxis_parameters.index(x) for x in heatmap_axes_specification["y_axis_ticks_minor"]]
+            ax.set_yticks(tick_locations_minor, minor=True)
             y_labels = map(heatmap_axes_specification["y_axis_tick_formatting"], heatmap_axes_specification["y_axis_ticks"])
             ax.set_yticklabels(y_labels, minor=False, fontsize=TICK_LABEL_FONT_SIZE)
         else:
