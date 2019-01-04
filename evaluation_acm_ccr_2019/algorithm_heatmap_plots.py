@@ -559,6 +559,23 @@ def _comparison_profit_qualitative_vine_5perc(vine_result, rr_result, vine_setti
     else:
         return 0
 
+def _profit_relative_to_lp_bound_rr(rr_result, rr_settings_list):
+    best_rr = max([rr_result.profits[rr_settings].max for rr_settings in rr_settings_list])
+    lp_bound = rr_result.lp_profit
+    return 100.0*(best_rr / lp_bound)
+
+def _profit_relative_to_lp_bound_vine(vine_result, rr_result, vine_settings_list, rr_settings_list):
+    best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in vine_settings_list])
+    lp_bound = rr_result.lp_profit
+    return 100.0*(best_vine / lp_bound)
+
+
+def _relative_profit_difference_to_lp_bound(vine_result, rr_result, vine_settings_list, rr_settings_list):
+    best_rr = max([rr_result.profits[rr_settings].max for rr_settings in rr_settings_list])
+    best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in vine_settings_list])
+    lp_bound = rr_result.lp_profit
+    return 100.0*(best_rr / lp_bound) - 100.0*(best_vine / lp_bound)
+
 
 class HSF_Comp_BestProfit(AbstractHeatmapSpecificationVineVsRandRoundFactory):
 
@@ -603,17 +620,68 @@ class HSF_Comp_QualProfitDiff_Vine(AbstractHeatmapSpecificationVineVsRandRoundFa
         cmap="Reds",
         plot_type=HeatmapPlotType.ComparisonVineRandRound,
         lookup_function=lambda vine_result, rr_result, vine_settings_list, rr_settings_list : _comparison_profit_qualitative_vine_5perc(vine_result,
-                                                                                                                               rr_result,
-                                                                                                                               vine_settings_list,
-                                                                                                                               rr_settings_list)
+                                                                                                                                        rr_result,
+                                                                                                                                        vine_settings_list,
+                                                                                                                                        rr_settings_list)
     )
+
+
+class HSF_Comp_RelProfitToLPBound_RR(AbstractHeatmapSpecificationVineVsRandRoundFactory):
+
+    prototype = dict(
+        name="Rel. Profit: Rand Round",
+        filename="rel_profit_lpbound_rr",
+        vmin=0,
+        vmax=+100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.ComparisonVineRandRound,
+        lookup_function=lambda vine_result, rr_result, vine_settings_list, rr_settings_list : _profit_relative_to_lp_bound_rr(rr_result,
+                                                                                                                              rr_settings_list)
+    )
+
+class HSF_Comp_RelProfitToLPBound_Vine(AbstractHeatmapSpecificationVineVsRandRoundFactory):
+
+    prototype = dict(
+        name="Rel. Profit: Vine",
+        filename="rel_profit_lpbound_vine",
+        vmin=0,
+        vmax=+100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.ComparisonVineRandRound,
+        lookup_function=lambda vine_result, rr_result, vine_settings_list, rr_settings_list : _profit_relative_to_lp_bound_vine(vine_result,
+                                                                                                                                rr_result,
+                                                                                                                                vine_settings_list,
+                                                                                                                                rr_settings_list)
+    )
+
+class HSF_Comp_RelProfitToLPBound_Vine(AbstractHeatmapSpecificationVineVsRandRoundFactory):
+
+    prototype = dict(
+        name="Rel. Profit Difference: RandRound vs. Vine",
+        filename="rel_profit_difference_lpbound",
+        vmin=-24,
+        vmax=+24,
+        colorbar_ticks=[x for x in range(-24, 24, 6)],
+        cmap="RdBu",
+        plot_type=HeatmapPlotType.ComparisonVineRandRound,
+        lookup_function=lambda vine_result, rr_result, vine_settings_list, rr_settings_list : _relative_profit_difference_to_lp_bound(vine_result,
+                                                                                                                                      rr_result,
+                                                                                                                                      vine_settings_list,
+                                                                                                                                      rr_settings_list)
+    )
+
+
 
 
 
 global_heatmap_specfications = HSF_RR_MeanProfit.get_all_hs() + \
                                HSF_Comp_BestProfit.get_all_hs() + \
                                HSF_Comp_QualProfitDiff_RR.get_all_hs() + \
-                               HSF_Comp_QualProfitDiff_Vine.get_all_hs()
+                               HSF_Comp_QualProfitDiff_Vine.get_all_hs() + \
+                               HSF_Comp_RelProfitToLPBound_RR.get_all_hs() + \
+                               HSF_Comp_RelProfitToLPBound_Vine.get_all_hs()
 
 # HSF_Vine_Runtime.get_all_hs() + \
 #                                HSF_Vine_MaxEdgeLoad.get_all_hs() + \
@@ -1258,6 +1326,7 @@ class ComparisonHeatmapPlotter(SingleHeatmapPlotter):
         return [(self.scenario_solution_storage.get_solutions_by_scenario_index(x)[self.algorithm_id][self.execution_id],
                  self.randround_scenario_solution_storage.get_solutions_by_scenario_index(x)[self.randround_algorithm_id][self.randround_execution_id])
                 for x in scenario_ids]
+
 
 
 def evaluate_vine_and_randround(dc_vine,
