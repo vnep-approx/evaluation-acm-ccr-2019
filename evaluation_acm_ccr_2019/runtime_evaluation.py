@@ -30,6 +30,7 @@ import os
 from itertools import combinations, product
 from time import gmtime, strftime
 
+import matplotlib.colors
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -169,15 +170,18 @@ boxplot_axes_specification_requests_treewidth = dict(
 boxplot_axes_specification_requests_num_req = dict(
     x_axis_parameter="number_of_requests",
     x_axis_title="Number of Requests",
-    x_axis_title_short="#REQ",
+    x_axis_title_short="#requests",
 )
 
 boxplot_outer_axes_specifications = (
     boxplot_axes_specification_requests_treewidth,
+    # boxplot_axes_specification_resources,
+    # boxplot_axes_specification_requests_num_req,
 )
 
 boxplot_inner_axes_specifications = (
-    boxplot_axes_specification_resources,
+    # boxplot_axes_specification_requests_treewidth,
+    # boxplot_axes_specification_resources,
     boxplot_axes_specification_requests_num_req,
 )
 
@@ -498,11 +502,9 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                                                                          filter_specifications)
 
         logger.debug("output_path is {};\t filename is {}".format(output_path, filename))
-
         if not self.overwrite_existing_files and os.path.exists(filename):
             logger.info("Skipping generation of {} as this file already exists".format(filename))
             return
-
         # check if filter specification conflicts with axes specification
         if filter_specifications is not None:
             for filter_specification in filter_specifications:
@@ -591,25 +593,71 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
         # group data
         bins = []
         positions = []
-        labels = []
+        labels = {}
+        x_ticks = []
+        colors = []
         pos = 0
+        cmap = plt.get_cmap("inferno")
         for outer_index, outer_val in enumerate(outer_axis_parameters):
+            start_pos = pos
             for inner_index, inner_val in enumerate(inner_axis_parameters):
                 bins.append(data[outer_val][inner_val])
                 positions.append(pos)
-                labels.append("{} - {}".format(outer_val, inner_val))
-                pos += 0.5
+                pos += 0.6
+                color = cmap((0.5 + float(inner_index)) / len(inner_axis_parameters))
+                colors.append(color)
+                labels[inner_val] = (str(inner_val), color)
+            x_ticks.append(start_pos - 0.3 + 0.5 * (pos - start_pos))
             pos += 1
 
-        ax.boxplot(
-            x=bins,
-            positions=positions,
-            labels=labels,
-        )
+        bplots = []
+        for _bin, pos in zip(bins, positions):
+            bplots.append(ax.boxplot(
+                x=_bin,
+                positions=[pos],
+                widths=[0.5],
+                patch_artist=True,
+            ))
+        for bplot, color in zip(
+                bplots,
+                colors,
+        ):
+            for patch in itertools.chain(bplot['boxes']):
+                patch.set_edgecolor(color)
+                patch.set_facecolor(
+                    matplotlib.colors.to_rgba(color, alpha=0.3)
+                )
+            for line in itertools.chain(
+                    bplot['medians'],
+                    bplot['fliers'],
+                    bplot['whiskers'],
+                    bplot['caps'],
+            ):
+                line.set_color(color)
+            for flier in bplot['fliers']:
+                flier.set(
+                    marker='o',
+                    markeredgecolor=matplotlib.colors.to_rgba(color, alpha=0.3),
+                )
 
-        # ax.set_xticks(np.arange(X.shape[1]) + 0.5, minor=False)
+        legend_handles = [
+            matplotlib.lines.Line2D([], [], color=color, alpha=1, linestyle="-", label=label, linewidth=2.5)
+            for (val, (label, color)) in sorted(labels.items())
+        ]
+        legend = plt.legend(handles=legend_handles, loc=2, fontsize=11, title=inner_axis["x_axis_title_short"], handletextpad=.35,
+                            ncol=2, borderaxespad=0.1, borderpad=0.2, handlelength=2.5)
+        legend.get_frame().set_alpha(1.0)
+        legend.get_frame().set_facecolor("#FFFFFF")
+        plt.setp(legend.get_title(), fontsize=12)
+        plt.gca().add_artist(legend)
 
-        ax.set_xlabel("{} grouped by {}".format(outer_axis['x_axis_title'], inner_axis['x_axis_title']), fontsize=16)
+        ax.set_xlim(min(positions) - 0.5, max(positions) + 0.5)
+        ax.set_xticks(x_ticks, minor=False)
+        ax.set_xticklabels(outer_axis_parameters, minor=False)
+
+        ax.set_yscale("log", nonposy='clip')
+
+        ax.set_xlabel(outer_axis['x_axis_title'], fontsize=16)
         ax.set_ylabel("LP Runtime", fontsize=16)
 
         self._show_and_or_save_plots(output_path, filename)
@@ -643,10 +691,10 @@ def evaluate_randround_runtimes(dc_randround,
                                 randround_execution_id,
                                 exclude_generation_parameters=None,
                                 parameter_filter_keys=None,
+                                forbidden_scenario_ids=None,
                                 show_plot=False,
                                 save_plot=True,
                                 overwrite_existing_files=True,
-                                forbidden_scenario_ids=None,
                                 papermode=True,
                                 maxdepthfilter=2,
                                 output_path="./",
@@ -697,6 +745,10 @@ def evaluate_randround_runtimes(dc_randround,
         scenario_solution_storage=dc_randround,
         algorithm_id=randround_algorithm_id,
         execution_id=randround_execution_id,
+        show_plot=show_plot,
+        save_plot=save_plot,
+        overwrite_existing_files=overwrite_existing_files,
+        paper_mode=papermode,
     )
 
     plotters.append(boxplotter_plotter)
