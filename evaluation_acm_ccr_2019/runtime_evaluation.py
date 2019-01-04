@@ -658,7 +658,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
         ax.set_yscale("log", nonposy='clip')
 
         ax.set_xlabel(outer_axis['x_axis_title'], fontsize=16)
-        ax.set_ylabel("LP Runtime", fontsize=16)
+        ax.set_ylabel(metric_specification["name"], fontsize=16)
 
         self._show_and_or_save_plots(output_path, filename)
         plt.close(fig)
