@@ -138,12 +138,43 @@ def compute_aggregated_mean(list_of_aggregated_data, debug=False):
 
 lp_runtime_metric = dict(
     name="LP Runtime",
-    lookup_function=lambda rr_result: rr_result.lp_time_optimization.mean,
+    lookup_function=lambda rr_result: rr_result.lp_time_optimization + rr_result.lp_time_preprocess,
+    result_num="single",
     filename="lp_optimization_time",
 )
 
+def lookup_rounding_runtimes(rr_result):
+    rr_settings_list = get_list_of_rr_settings()
+
+    result = []
+    for rr_settings in rr_settings_list:
+        if rr_settings[0] == treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION:
+            #only then consider results
+            result.append(rr_result.rounding_runtimes[rr_settings].mean)
+    return result
+
+lp_rounding_time_metric = dict(
+    name="Rounding Runtime",
+    lookup_function=lambda rr_result: lookup_rounding_runtimes(rr_result),
+    result_num="many",
+    filename="solution_rounding_time",
+)
+
+lp_dynvmp_time_metric = dict(
+    name="LP DynVMP Runtime (Total)",
+    lookup_function=lambda rr_result: rr_result.lp_time_optimization +
+                                      rr_result.lp_time_preprocess -
+                                      rr_result.lp_time_tree_decomposition.mean * rr_result.lp_time_tree_decomposition.value_count -
+                                      rr_result.lp_time_gurobi_optimization.mean * rr_result.lp_time_gurobi_optimization.value_count,
+    result_num="single",
+    filename="lp_dynvmp_time_total",
+)
+
+
 global_metric_specifications = (
     lp_runtime_metric,
+    lp_rounding_time_metric,
+    lp_dynvmp_time_metric
 )
 
 """
@@ -553,8 +584,10 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                 # for solution in solutions:
                 #     print solution
 
-                values = [solution.lp_time_optimization
-                          for solution in solutions]
+                if metric_specification["result_num"] == "single":
+                    values = [metric_specification["lookup_function"](solution) for solution in solutions]
+                else:
+                    values = [value for solution in solutions for value in metric_specification["lookup_function"](solution)]
 
                 observed_values = np.append(observed_values, values)
 
@@ -604,7 +637,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                 bins.append(data[outer_val][inner_val])
                 positions.append(pos)
                 pos += 0.6
-                color = cmap((0.5 + float(inner_index)) / len(inner_axis_parameters))
+                color = cmap(1.0-(1 + float(inner_index)) / len(inner_axis_parameters))
                 colors.append(color)
                 labels[inner_val] = (str(inner_val), color)
             x_ticks.append(start_pos - 0.3 + 0.5 * (pos - start_pos))
@@ -637,7 +670,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
             for flier in bplot['fliers']:
                 flier.set(
                     marker='o',
-                    markeredgecolor=matplotlib.colors.to_rgba(color, alpha=0.3),
+                    markeredgecolor=matplotlib.colors.to_rgba(color, alpha=0.8),
                 )
 
         legend_handles = [
