@@ -86,18 +86,32 @@ information:
 - colorbar_ticks:       the tick values (numeric) for the heatmap plot   
 
 """
-heatmap_specification_avg_treewidth = dict(
-    name="Treewidth (avg.)",
-    filename="treewidth_avg",
+heatmap_specification_avg_rounded_treewidth = dict(
+    name="Avg. Treewidth (rounded)",
+    filename="treewidth_avg_rounded",
     vmin=1.0,
-    vmax=40.0,
-    colorbar_ticks=[1,2, 3, 4, 5, 10, 20, 40],
-    rounding_function= lambda x: round(x),
+    vmax=44.0,
+    colorbar_ticks=[1,2, 3, 4, 6, 10, 20, 40],
+    rounding_function= lambda x: max(round(x),1),
     cmap="inferno",
     plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Average,
     lookup_function=lambda tw_result: tw_result.treewidth,
     metric_filter=lambda obj: (obj >= -0.00001)
 )
+
+heatmap_specification_avg_treewidth = dict(
+    name="Avg. Treewidth",
+    filename="treewidth_avg",
+    vmin=1.0,
+    vmax=44.0,
+    colorbar_ticks=[1,2, 3, 4, 6, 10, 20, 40],
+    cmap="inferno",
+    plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Average,
+    lookup_function=lambda tw_result: tw_result.treewidth,
+    metric_filter=lambda obj: (obj >= -0.00001)
+)
+
+
 heatmap_specification_avg_runtime = dict(
     name="Avg. Decomposition Runtime",
     filename="runtime_avg",
@@ -134,6 +148,7 @@ heatmap_specification_max_runtime = dict(
 
 global_heatmap_specfications = [
     heatmap_specification_avg_treewidth,
+    heatmap_specification_avg_rounded_treewidth,
     heatmap_specification_avg_runtime,
     heatmap_specification_max_treewidth,
     heatmap_specification_max_runtime,
@@ -255,7 +270,8 @@ global_decomposition_runtime_plot_specfications = [
 
 decomposition_runtime_plot_axis_specification_treewidth = dict(
     x_axis_title="Treewidth",
-    x_axis_ticks=range(0, 50, 5),
+    x_axis_ticks=range(0, 46, 5),
+    xlim=(-3,45),
     filename="treewidth",
     x_axis_function=lambda tw_result: tw_result.treewidth,
     plot_title="Decomposition Runtime"
@@ -263,7 +279,7 @@ decomposition_runtime_plot_axis_specification_treewidth = dict(
 
 decomposition_runtime_plot_axis_specification_num_nodes = dict(
     x_axis_title="Number of Nodes",
-    x_axis_ticks=[5, 10, 20, 30, 40, 50],
+    x_axis_ticks=[5, 10, 20, 30, 40, 45],
     filename="num_nodes",
     x_axis_function=lambda tw_result: tw_result.num_nodes,
     plot_title="undefined"
@@ -271,7 +287,7 @@ decomposition_runtime_plot_axis_specification_num_nodes = dict(
 
 decomposition_runtime_plot_axis_specification_probability = dict(
     x_axis_title="Edge Connection Probability (%)",
-    x_axis_ticks=[1, 10, 20, 30, 40, 50],
+    x_axis_ticks=[10, 20, 30, 40, 50, 60, 70, 80, 90],
     filename="probability",
     x_axis_function=lambda tw_result: tw_result.edge_probability,
     plot_title="undefined"
@@ -647,7 +663,7 @@ class DecompositionRuntimePlotter(AbstractPlotter):
         plt.setp(leg.get_title(), fontsize=LEGEND_TITLE_FONT_SIZE)
         plt.gca().add_artist(leg)
 
-        sec_leg = ax.legend(handles=[median_legend_handle], fontsize=LEGEND_LABEL_FONT_SIZE, title="", handletextpad=.35,
+        sec_leg = ax.legend(handles=[median_legend_handle], fontsize=LEGEND_LABEL_FONT_SIZE, loc=1, title="", handletextpad=.35,
                         borderaxespad=0.175, borderpad=0.2, handlelength=1.75, frameon=True)
 
 
@@ -660,6 +676,10 @@ class DecompositionRuntimePlotter(AbstractPlotter):
         if decomposition_runtime_metric_specification.get("use_log_scale", False):
             plt.yscale('log')
             plt.autoscale(True)
+
+        if "xlim" in decomposition_runtime_axes_specification:
+            ax.set_xlim(decomposition_runtime_axes_specification['xlim'][0], decomposition_runtime_axes_specification['xlim'][1])
+
         ax.tick_params(axis="x", **DEFAULT_MAJOR_TICK_PARAMS)
         ax.tick_params(axis="y", **DEFAULT_MAJOR_TICK_PARAMS)
         ax.tick_params(axis="x", **DEFAULT_MINOR_TICK_PARAMS)
