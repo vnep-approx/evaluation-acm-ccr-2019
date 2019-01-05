@@ -47,6 +47,16 @@ REQUIRED_FOR_PICKLE = solutions  # this prevents pycharm from removing this impo
 OUTPUT_PATH = None
 OUTPUT_FILETYPE = "png"
 
+BOX_WIDTH = 0.5
+BOX_SEPARATION_WITHIN_GROUP = 0.6
+BOX_SEPARATION_BETWEEN_GROUPS = 0.3
+
+PLOT_TITLE_FONTSIZE = 17
+AXIS_LABEL_FONTSIZE = 16
+LEGEND_TITLE_FONTSIZE = 15
+LEGEND_LABEL_FONTSIZE = 14
+AXIS_TICKLABEL_FONTSIZE = 14
+
 logger = util.get_logger(__name__, make_file=False, propagate=True)
 
 
@@ -136,25 +146,28 @@ def compute_aggregated_mean(list_of_aggregated_data, debug=False):
     return mean / value_count
 
 
-lp_runtime_metric = dict(
-    name="LP Runtime",
-    lookup_function=lambda rr_result: rr_result.lp_time_optimization + rr_result.lp_time_preprocess,
-    result_num="single",
-    filename="lp_optimization_time",
-)
-
 def lookup_rounding_runtimes(rr_result):
     rr_settings_list = get_list_of_rr_settings()
 
     result = []
     for rr_settings in rr_settings_list:
         if rr_settings[0] == treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION:
-            #only then consider results
+            # only then consider results
             result.append(rr_result.rounding_runtimes[rr_settings].mean)
     return result
 
+
+lp_runtime_metric = dict(
+    name="LP Runtime",
+    y_axis_title="Runtime [s]",
+    lookup_function=lambda rr_result: rr_result.lp_time_optimization + rr_result.lp_time_preprocess,
+    result_num="single",
+    filename="lp_optimization_time",
+)
+
 lp_rounding_time_metric = dict(
     name="Rounding Runtime",
+    y_axis_title="Runtime [s]",
     lookup_function=lambda rr_result: lookup_rounding_runtimes(rr_result),
     result_num="many",
     filename="solution_rounding_time",
@@ -162,6 +175,7 @@ lp_rounding_time_metric = dict(
 
 lp_dynvmp_time_metric = dict(
     name="LP DynVMP Runtime (Total)",
+    y_axis_title="Runtime [s]",
     lookup_function=lambda rr_result: rr_result.lp_time_optimization +
                                       rr_result.lp_time_preprocess -
                                       rr_result.lp_time_tree_decomposition.mean * rr_result.lp_time_tree_decomposition.value_count -
@@ -169,7 +183,6 @@ lp_dynvmp_time_metric = dict(
     result_num="single",
     filename="lp_dynvmp_time_total",
 )
-
 
 global_metric_specifications = (
     lp_runtime_metric,
@@ -610,9 +623,9 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
 
         fig, ax = plt.subplots(figsize=(5, 4))
         if self.paper_mode:
-            ax.set_title("Runtime Evaluation Randomized Rounding", fontsize=17)
+            ax.set_title(metric_specification["name"], fontsize=PLOT_TITLE_FONTSIZE)
         else:
-            title = "Runtime evaluation" + "\n"
+            title = metric_specification["name"] + "\n"
             title += self.algorithm_variant_to_be_considered + "\n"
             if filter_specifications:
                 title += get_title_for_filter_specifications(filter_specifications) + "\n"
@@ -632,23 +645,23 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
         pos = 0
         cmap = plt.get_cmap("inferno")
         for outer_index, outer_val in enumerate(outer_axis_parameters):
-            start_pos = pos
+            group_start_pos = pos
             for inner_index, inner_val in enumerate(inner_axis_parameters):
                 bins.append(data[outer_val][inner_val])
                 positions.append(pos)
                 pos += 0.6
-                color = cmap(1.0-(1 + float(inner_index)) / len(inner_axis_parameters))
+                color = cmap(1.0 - (1 + float(inner_index)) / len(inner_axis_parameters))
                 colors.append(color)
                 labels[inner_val] = (str(inner_val), color)
-            x_ticks.append(start_pos - 0.3 + 0.5 * (pos - start_pos))
-            pos += 1
+            x_ticks.append(group_start_pos + 0.5 * (pos - group_start_pos) - 0.5 * BOX_SEPARATION_WITHIN_GROUP)
+            pos += BOX_SEPARATION_BETWEEN_GROUPS
 
         bplots = []
         for _bin, pos in zip(bins, positions):
             bplots.append(ax.boxplot(
                 x=_bin,
                 positions=[pos],
-                widths=[0.5],
+                widths=[BOX_WIDTH],
                 patch_artist=True,
             ))
         for bplot, color in zip(
@@ -667,8 +680,8 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                     bplot['caps'],
             ):
                 line.set_color(color)
-            for flier in bplot['fliers']:
-                flier.set(
+            for marker in bplot['fliers']:
+                marker.set(
                     marker='o',
                     markeredgecolor=matplotlib.colors.to_rgba(color, alpha=0.8),
                 )
@@ -677,21 +690,34 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
             matplotlib.lines.Line2D([], [], color=color, alpha=1, linestyle="-", label=label, linewidth=2.5)
             for (val, (label, color)) in sorted(labels.items())
         ]
-        legend = plt.legend(handles=legend_handles, loc=2, fontsize=11, title=inner_axis["x_axis_title_short"], handletextpad=.35,
-                            ncol=2, borderaxespad=0.1, borderpad=0.2, handlelength=2.5)
+
+        fig.subplots_adjust(top=0.825)
+        fig.subplots_adjust(bottom=0.15)
+        fig.subplots_adjust(right=0.78)
+        fig.subplots_adjust(hspace=0.3)
+        fig.subplots_adjust(left=0.18)
+
+        legend = plt.legend(handles=legend_handles,
+                            title=inner_axis["x_axis_title_short"],
+                            loc='center right',
+                            fontsize=LEGEND_LABEL_FONTSIZE,
+                            handletextpad=0.35, bbox_to_anchor=(0.99, 0.5), bbox_transform=plt.gcf().transFigure,
+                            borderaxespad=-0.175, borderpad=0.2)
         legend.get_frame().set_alpha(1.0)
         legend.get_frame().set_facecolor("#FFFFFF")
-        plt.setp(legend.get_title(), fontsize=12)
+        plt.setp(legend.get_title(), fontsize=LEGEND_TITLE_FONTSIZE)
         plt.gca().add_artist(legend)
 
         ax.set_xlim(min(positions) - 0.5, max(positions) + 0.5)
         ax.set_xticks(x_ticks, minor=False)
-        ax.set_xticklabels(outer_axis_parameters, minor=False)
+        ax.set_xticklabels(outer_axis_parameters, minor=False, fontsize=AXIS_TICKLABEL_FONTSIZE)
 
         ax.set_yscale("log", nonposy='clip')
 
-        ax.set_xlabel(outer_axis['x_axis_title'], fontsize=16)
-        ax.set_ylabel(metric_specification["name"], fontsize=16)
+        for label in ax.get_yticklabels():
+            plt.setp(label, fontsize=AXIS_TICKLABEL_FONTSIZE)
+        ax.set_xlabel(outer_axis['x_axis_title'], fontsize=AXIS_LABEL_FONTSIZE)
+        ax.set_ylabel(metric_specification["y_axis_title"], fontsize=AXIS_LABEL_FONTSIZE)
 
         self._show_and_or_save_plots(output_path, filename)
         plt.close(fig)
