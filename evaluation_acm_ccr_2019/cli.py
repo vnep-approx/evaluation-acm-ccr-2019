@@ -118,42 +118,11 @@ def create_undirected_graph_storage_from_treewidth_experiments(input_pickle_file
         pickle.dump(graph_storage, f)
 
 
-
-@cli.command(short_help="extracts data to be plotted for the separation lp")
-@click.argument('input_pickle_file', type=click.Path())
-@click.option('--output_pickle_file', type=click.Path(), default=None)
-@click.option('--log_level_print', type=click.STRING, default="info")
-@click.option('--log_level_file', type=click.STRING, default="debug")
-def reduce_to_plotdata_separation_lp_dynvmp_pickle(input_pickle_file, output_pickle_file, log_level_print, log_level_file):
-    """ Given a scenario solution pickle (input_pickle_file), this function extracts data  to be plotted and writes it to --output_pickle_file.
-        If --output_pickle_file is not given, a default name (derived from the input's              basename) is derived.
-
-        The input_file must be contained in ALIB_EXPERIMENT_HOME/input and the output
-        will be written to ALIB_EXPERIMENT_HOME/output while the log is saved in
-        ALIB_EXPERIMENT_HOME/log.
-    """
-    util.ExperimentPathHandler.initialize(check_emptiness_log=False, check_emptiness_output=False)
-    log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR,
-                            "reduce_{}.log".format(os.path.basename(input_pickle_file)))
-    initialize_logger(log_file, log_level_print, log_level_file)
-    reducer = sep_dynvmp_vs_lp.SeparationLPDynVMPReducer()
-    reducer.reduce_seplp(input_pickle_file, output_pickle_file)
-
 @cli.command()
 @click.argument('parameters_file', type=click.File('r'))
 @click.argument('results_pickle_file', type=click.File('r'))
 def treewidth_plot_computation_results(parameters_file, results_pickle_file):
     treewidth_computation_plots.make_plots(parameters_file, results_pickle_file)
-
-
-@cli.command()
-@click.argument('separation_lp_pickle', click.Path(exists=True))
-@click.argument('reduced_randround_pickle', click.Path(exists=True))
-@click.argument('output_pickle', click.Path(exists=True))
-def extract_comparison_data_randround_vs_separation(separation_lp_pickle,
-                                                    reduced_randround_pickle,
-                                                    output_pickle):
-    sep_dynvmp_vs_lp.extract_comparison_data_randround_vs_separation(separation_lp_pickle, reduced_randround_pickle, output_pickle)
 
 
 @cli.command(short_help="extracts data to be plotted for randomized rounding algorithms")
@@ -262,8 +231,8 @@ def query_algorithm_id_and_execution_id(logger,
     return algorithm_id, execution_config_id
 
 @cli.command(short_help="create plots for baseline and randround solution")
-@click.argument('lp_sep_dynvmp_pickle_name', type=click.Path())     #pickle in ALIB_EXPERIMENT_HOME/input storing randround results
-@click.argument('randround_pickle_name', type=click.Path())      #pickle in ALIB_EXPERIMENT_HOME/input storing baseline results
+@click.argument('sep_lp_dynvmp_reduced_pickle', type=click.Path())     #pickle in ALIB_EXPERIMENT_HOME/input storing randround results
+@click.argument('ifip_randround_pickle', type=click.Path())      #pickle in ALIB_EXPERIMENT_HOME/input storing baseline results
 @click.argument('output_directory', type=click.Path())          #path to which the result will be written
 @click.option('--sep_lp_dynvmp_algorithm_id', type=click.STRING, default=None, help="algorithm id of sep_lp_dynvmp algorithm; if not given it will be asked for.")
 @click.option('--sep_lp_dynvmp_execution_config', type=click.INT, default=None, help="execution (configuration) id of sep_lp_dynvmp alg; if not given it will be asked for.")
@@ -277,8 +246,8 @@ def query_algorithm_id_and_execution_id(logger,
 @click.option('--output_filetype', type=click.Choice(['png', 'pdf', 'eps']), default="png", help="the filetype which shall be created")
 @click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
 @click.option('--log_level_file', type=click.STRING, default="debug", help="log level for stdout")
-def evaluate_results(lp_sep_dynvmp_pickle_name,
-                     randround_pickle_name,
+def evaluate_results(sep_lp_dynvmp_reduced_pickle,
+                     ifip_randround_pickle,
                      output_directory,
                      sep_lp_dynvmp_algorithm_id,
                      sep_lp_dynvmp_execution_config,
@@ -293,20 +262,20 @@ def evaluate_results(lp_sep_dynvmp_pickle_name,
 
     util.ExperimentPathHandler.initialize(check_emptiness_log=False, check_emptiness_output=False)
     log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR,
-                            "evaluate_pickles_{}_{}.log".format(os.path.basename(lp_sep_dynvmp_pickle_name),
-                                                                os.path.basename(randround_pickle_name)))
+                            "evaluate_pickles_{}_{}.log".format(os.path.basename(sep_lp_dynvmp_reduced_pickle),
+                                                                os.path.basename(ifip_randround_pickle)))
     initialize_logger(log_file, log_level_print, log_level_file, allow_override=True)
 
-    lp_sep_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, lp_sep_dynvmp_pickle_name)
-    randround_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, randround_pickle_name)
+    lp_sep_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, sep_lp_dynvmp_reduced_pickle)
+    randround_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, ifip_randround_pickle)
 
     #get root logger
     logger = logging.getLogger()
 
     logger.info("Reading reduced lp_sep_pickle pickle at {}".format(lp_sep_pickle_path))
-    lp_sep_dynvmp_results = None
+    sep_lp_dynvmp_results = None
     with open(lp_sep_pickle_path, "rb") as f:
-        lp_sep_dynvmp_results = pickle.load(f)
+        sep_lp_dynvmp_results = pickle.load(f)
 
     logger.info("Reading reduced randround pickle at {}".format(randround_pickle_path))
     randround_results = None
@@ -316,16 +285,16 @@ def evaluate_results(lp_sep_dynvmp_pickle_name,
     logger.info("Loading algorithm identifiers and execution ids..")
 
     sep_lp_dynvmp_algorithm_id, sep_lp_dynvmp_execution_config = query_algorithm_id_and_execution_id(logger,
-                                                                                                     lp_sep_dynvmp_pickle_name,
-                                                                                                     lp_sep_dynvmp_results.execution_parameter_container,
+                                                                                                     sep_lp_dynvmp_reduced_pickle,
+                                                                                                     sep_lp_dynvmp_results.execution_parameter_container,
                                                                                                      sep_lp_dynvmp_algorithm_id,
                                                                                                      sep_lp_dynvmp_execution_config)
 
     randround_algorithm_id, randround_execution_config = query_algorithm_id_and_execution_id(logger,
-                                                                                           randround_pickle_name,
-                                                                                           randround_results.execution_parameter_container,
-                                                                                           randround_algorithm_id,
-                                                                                           randround_execution_config)
+                                                                                             ifip_randround_pickle,
+                                                                                             randround_results.execution_parameter_container,
+                                                                                             randround_algorithm_id,
+                                                                                             randround_execution_config)
 
     output_directory = os.path.normpath(output_directory)
 
@@ -335,7 +304,7 @@ def evaluate_results(lp_sep_dynvmp_pickle_name,
         exclude_generation_parameters = eval(exclude_generation_parameters)
 
     logger.info("Starting evaluation...")
-    sep_dynvmp_vs_lp.evaluate_baseline_and_randround(lp_sep_dynvmp_results,
+    sep_dynvmp_vs_lp.evaluate_baseline_and_randround(sep_lp_dynvmp_results,
                                                      sep_lp_dynvmp_algorithm_id,
                                                      sep_lp_dynvmp_execution_config,
                                                      randround_results,

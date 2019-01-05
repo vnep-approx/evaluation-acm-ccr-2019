@@ -84,66 +84,6 @@ def extract_comparison_data_randround_vs_separation(separation_lp_pickle,
     with open(output_pickle, "r") as f:
         foo = pickle.load(f)
 
-def reduce_separation_lp_dynvmp_pickle(separation_lp_dynvmp_result_input_pickle_name,
-                                       separation_lp_dynvmp_result_output_name = None):
-
-    sep_lp_dynvmp_reducer = SeparationLPDynVMPReducer()
-    sep_lp_dynvmp_reducer.reduce_seplp(separation_lp_dynvmp_result_input_pickle_name,
-                                       separation_lp_dynvmp_result_output_name)
-
-
-
-class SeparationLPDynVMPReducer(object):
-
-    def __init__(self):
-        pass
-
-    def reduce_seplp(self,
-                     separation_lp_dynvmp_result_input_pickle_name,
-                     separation_lp_dynvmp_result_output_name=None):
-
-        separation_lp_dynvmp_solutions_input_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR,
-                                                             separation_lp_dynvmp_result_input_pickle_name)
-
-        reduced_separatio_lp_dynvmp_solutions_output_pickle_path = None
-        if separation_lp_dynvmp_result_output_name is None:
-            file_basename = os.path.basename(separation_lp_dynvmp_solutions_input_pickle_path).split(".")[0]
-            reduced_separatio_lp_dynvmp_solutions_output_pickle_path = os.path.join(util.ExperimentPathHandler.OUTPUT_DIR,
-                                                                          file_basename + "_reduced.pickle")
-        else:
-            reduced_separatio_lp_dynvmp_solutions_output_pickle_path = os.path.join(util.ExperimentPathHandler.OUTPUT_DIR,
-                                                                          separation_lp_dynvmp_result_input_pickle_name)
-
-        logger.info("\nWill read from ..\n\t{} \n\t\tand store reduced data into\n\t{}\n".format(
-            separation_lp_dynvmp_solutions_input_pickle_path, reduced_separatio_lp_dynvmp_solutions_output_pickle_path))
-
-        logger.info("Reading pickle file at {}".format(separation_lp_dynvmp_solutions_input_pickle_path))
-        with open(separation_lp_dynvmp_solutions_input_pickle_path, "rb") as f:
-            sss = pickle.load(f)
-
-        sss.scenario_parameter_container.scenario_list = None
-        sss.scenario_parameter_container.scenario_triple = None
-
-        for alg, scenario_solution_dict in sss.algorithm_scenario_solution_dictionary.iteritems():
-            logger.info(".. Reducing results of algorithm {}".format(alg))
-            for sc_id, ex_param_solution_dict in scenario_solution_dict.iteritems():
-                logger.info("   .. handling scenario {}".format(sc_id))
-                for ex_id, solution in ex_param_solution_dict.iteritems():
-                    compressed = self.reduce_single_solution(solution)
-                    ex_param_solution_dict[ex_id] = compressed
-
-        logger.info("Writing result pickle to {}".format(reduced_separatio_lp_dynvmp_solutions_output_pickle_path))
-        with open(os.path.join(reduced_separatio_lp_dynvmp_solutions_output_pickle_path),
-                  "w") as f:
-            pickle.dump(sss, f)
-        logger.info("All done.")
-
-    def reduce_single_solution(self, solution):
-        return solution
-        #pass: reduce nothing at the moment.
-
-
-
 def extract_parameter_range(scenario_parameter_space_dict, key):
     if not isinstance(scenario_parameter_space_dict, dict):
         return None
@@ -284,9 +224,7 @@ def evaluate_baseline_and_randround(dc_seplp_dynvmp,
 
     plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set=sep_lp_dynvmp_data_set,
                                             randround_data_set=randround_data_set,
-                                            dc_seplp_dynvmp=dc_seplp_dynvmp,
-                                            dc_randround=dc_randround,
-                                            forbidden_scenario_ids=forbidden_scenario_ids)
+                                            dc_seplp_dynvmp=dc_seplp_dynvmp)
 
 
 
@@ -295,9 +233,161 @@ def evaluate_baseline_and_randround(dc_seplp_dynvmp,
 
 def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
                                             randround_data_set,
-                                            dc_seplp_dynvmp,
-                                            dc_randround,
-                                            forbidden_scenario_ids):
+                                            dc_seplp_dynvmp):
+
+    logger.info(sep_lp_dynvmp_data_set)
+
+    scenarioparameter_room = dc_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room
+
+    scenario_parameter_dict = dc_seplp_dynvmp.scenario_parameter_container.scenario_parameter_dict
+
+    filter_path_number_of_requests, list_number_of_requests = extract_parameter_range(scenarioparameter_room,
+                                                                                      "number_of_requests")
+
+    logger.info(list_number_of_requests)
+
+
+    fix, ax = plt.subplots(figsize=(5, 3.5))
+
+    def get_color(value):
+        return plt.cm.inferno(value)
+
+    colors = [get_color(0.7),get_color(0.35),get_color(0.0)]
+    #colors = [get_color(0.75), get_color(0.55), get_color(0.35), get_color(0.0)]
+    linestyles = ['-', '--']
+
+    with_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[0], label=r"incl.  $\mathcal{T}_r$ comp.", linewidth=2)
+    wo_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[1], label=r"excl. $\mathcal{T}_r$ comp.", linewidth=2.75)
+
+
+    second_legend_handlers = []
+
+    max_observed_value = 0
+
+    request_sets = [[40], [60], [80,100]]
+
+    for request_number_index, number_of_requests_ in enumerate(request_sets):
+        scenario_ids_to_consider = set()
+        for number_of_requests in number_of_requests_:
+            #do the code!
+            scenario_ids_of_requests = lookup_scenarios_having_specific_values(scenario_parameter_dict, filter_path_number_of_requests, number_of_requests)
+            scenario_ids_to_consider = scenario_ids_to_consider.union(scenario_ids_of_requests)
+
+        speedups_real = []
+        speedups_wotd = []  # without tree decomposition
+        relative_speedup_sep_lp_wo_td = []
+
+        for scenario_id in scenario_ids_to_consider:
+            seplp_with_decomposition = sep_lp_dynvmp_data_set[scenario_id].lp_time_preprocess + sep_lp_dynvmp_data_set[scenario_id].lp_time_optimization
+            seplp_without_decomposition = seplp_with_decomposition - (sep_lp_dynvmp_data_set[scenario_id].lp_time_tree_decomposition.mean * sep_lp_dynvmp_data_set[scenario_id].lp_time_tree_decomposition.value_count)
+
+            randround_lp_runtime = randround_data_set[scenario_id].meta_data.time_preprocessing + \
+                                   randround_data_set[scenario_id].meta_data.time_optimization + \
+                                   randround_data_set[scenario_id].meta_data.time_postprocessing
+
+            relative_speedup_sep_lp_wo_td.append(seplp_with_decomposition / seplp_without_decomposition)
+
+            speedups_real.append(randround_lp_runtime / seplp_with_decomposition)
+            speedups_wotd.append(randround_lp_runtime / seplp_without_decomposition)
+
+        speedup_real = sorted(speedups_real)
+        speedup_wotd = sorted(speedups_wotd)
+
+
+        logger.info("Relative when excluding tree decomposition computation {} requests:\n"
+                    "mean: {}\n".format(number_of_requests,
+                                        np.mean(relative_speedup_sep_lp_wo_td)))
+
+
+        logger.info("Relative speedup compared to cactus LP for {} requests:\n"
+                    "with tree decomposition (mean): {}\n"
+                    "without tree decomposition (mean): {}".format(number_of_requests,
+                                                                   np.mean(speedups_real),
+                                                                   np.mean(speedups_wotd)))
+
+
+
+        max_observed_value = np.maximum(max_observed_value, speedup_real[-1])
+        yvals = np.arange(1, len(speedup_real) + 1) / float(len(speedup_real))
+        yvals = np.insert(yvals, 0, 0.0, axis=0)
+        yvals = np.append(yvals, [1.0])
+        speedup_real.append(max_observed_value)
+        speedup_real.insert(0, 0.5)
+        ax.semilogx(speedup_real, yvals, color=colors[request_number_index], linestyle=linestyles[0],
+                    linewidth=2.75, alpha=1)
+
+        max_observed_value = np.maximum(max_observed_value, speedup_wotd[-1])
+        yvals = np.arange(1, len(speedup_wotd) + 1) / float(len(speedup_wotd))
+        yvals = np.insert(yvals, 0, 0.0, axis=0)
+        yvals = np.append(yvals, [1.0])
+        speedup_wotd.append(max_observed_value)
+        speedup_wotd.insert(0, 0.5)
+        ax.semilogx(speedup_wotd, yvals, color=colors[request_number_index], linestyle=linestyles[1],
+                    linewidth=2.75, alpha=1)
+
+        if len(number_of_requests_) == 2:
+            second_legend_handlers.append(matplotlib.lines.Line2D([], [], color=colors[request_number_index], alpha=1, linestyle="-",
+                                                                  label=("{} & {}".format(number_of_requests_[0], number_of_requests_[1])).ljust(3), linewidth=2.5))
+        else:
+            second_legend_handlers.append(
+                matplotlib.lines.Line2D([], [], color=colors[request_number_index], alpha=1, linestyle="-",
+                                        label=("{}".format(number_of_requests_[0])).ljust(
+                                            3), linewidth=2.5))
+
+    first_legend = plt.legend(handles=[with_td, wo_td], loc=4, fontsize=11, title="", handletextpad=.35,
+                              borderaxespad=0.1, borderpad=0.2, handlelength=2.5)
+    first_legend.get_frame().set_alpha(1.0)
+    first_legend.get_frame().set_facecolor("#FFFFFF")
+    plt.setp(first_legend.get_title(), fontsize=12)
+    plt.gca().add_artist(first_legend)
+    # ax.tick_params(labelright=True)
+
+    # print second_legend_handlers
+
+    second_legend = plt.legend(handles=second_legend_handlers, loc=2, fontsize=11, title="#requests", handletextpad=.35,
+                               borderaxespad=0.175, borderpad=0.2, handlelength=2)
+    #plt.gca().add_artist(second_legend)
+    plt.setp(second_legend.get_title(), fontsize=12)
+
+    second_legend.get_frame().set_alpha(1.0)
+    second_legend.get_frame().set_facecolor("#FFFFFF")
+
+    # first_legend = plt.legend(title="Bound($\mathrm{MIP}_{\mathrm{MCF}})$", handles=root_legend_handlers, loc=(0.225,0.0125), fontsize=14, handletextpad=0.35, borderaxespad=0.175, borderpad=0.2)
+    # plt.setp(first_legend.get_title(), fontsize='15')
+    # plt.gca().add_artist(first_legend)
+    # plt.setp("TITLE", fontsize='15')
+
+    ax.set_title("LP Runtime Comparison", fontsize=17)
+    ax.set_xlabel(r"Speedup: Time($\mathsf{LP}_{\mathsf{Cactus}}$) / Time($\mathsf{LP}_{\mathsf{DynVMP}}$)",
+                  fontsize=16)
+    ax.set_ylabel("ECDF", fontsize=16)
+
+    ax.set_xlim(0.4, max_observed_value * 1.15)
+
+    for tick in ax.xaxis.get_major_ticks():
+        tick.label.set_fontsize(13)
+    for tick in ax.yaxis.get_major_ticks():
+        tick.label.set_fontsize(13)
+
+    ax.set_xticks([0.5, 1, 5, 20, 60, ], minor=False)
+    ax.set_xticks([2, 3, 4, 10, 30, 40], minor=True)
+
+    ax.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0], minor=False)
+    ax.set_yticks([0.1, 0.3, 0.5, 0.7, 0.9], minor=True)
+
+    # ax.set_yticks([x*0.1 for x in range(1,10)], minor=True)
+    ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+
+    ax.set_xticklabels([], minor=True)
+
+    ax.grid(True, which="both", linestyle=":", color='k', alpha=0.7, linewidth=0.33)
+    plt.tight_layout()
+    plt.savefig("ecdf_speedup_cactus_lp_vs_separation_dynvmp.pdf")
+
+
+def plot_comparison_separation_dynvmp_vs_lp_orig(sep_lp_dynvmp_data_set,
+                                            randround_data_set,
+                                            dc_seplp_dynvmp):
 
     logger.info(sep_lp_dynvmp_data_set)
 
@@ -336,8 +426,8 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
         relative_speedup_sep_lp_wo_td = []
 
         for scenario_id in scenario_ids_of_requests:
-            seplp_with_decomposition = sep_lp_dynvmp_data_set[scenario_id].time_preprocessing + sep_lp_dynvmp_data_set[scenario_id].time_optimization
-            seplp_without_decomposition = seplp_with_decomposition - sum(sep_lp_dynvmp_data_set[scenario_id].tree_decomp_runtimes)
+            seplp_with_decomposition = sep_lp_dynvmp_data_set[scenario_id].lp_time_preprocess + sep_lp_dynvmp_data_set[scenario_id].lp_time_optimization
+            seplp_without_decomposition = seplp_with_decomposition - (sep_lp_dynvmp_data_set[scenario_id].lp_time_tree_decomposition.mean * sep_lp_dynvmp_data_set[scenario_id].lp_time_tree_decomposition.value_count)
 
             randround_lp_runtime = randround_data_set[scenario_id].meta_data.time_preprocessing + \
                                    randround_data_set[scenario_id].meta_data.time_optimization + \
