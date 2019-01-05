@@ -32,57 +32,13 @@ try:
 except ImportError:
     import pickle
 
-from alib import util
 import matplotlib
 from matplotlib import pyplot as plt
 import logging
 
-from collections import namedtuple
 
 logger = logging.getLogger(__name__)
 
-
-def extract_comparison_data_randround_vs_separation(separation_lp_pickle,
-                                                    reduced_randround_pickle,
-                                                    output_pickle):
-    print("Input is {} {} {}".format(separation_lp_pickle, reduced_randround_pickle, output_pickle))
-
-    print("Reading reduced randround pickle{}..".format(reduced_randround_pickle))
-    rrr_pickle = None
-    with open(reduced_randround_pickle, "r") as f:
-        rrr_pickle = pickle.load(f)
-    print("Done: {}".format(rrr_pickle))
-
-    result = {}
-
-    rrr_sol_dict = rrr_pickle.algorithm_scenario_solution_dictionary['RandomizedRoundingTriumvirate']
-    list_of_scenario_indices_with_runtime = []
-    for scenario_index, value in rrr_sol_dict.iteritems():
-        rand_round_solution = rrr_sol_dict[scenario_index][0]
-        total_runtime = rand_round_solution.meta_data.time_preprocessing + \
-                        rand_round_solution.meta_data.time_optimization + \
-                        rand_round_solution.meta_data.time_postprocessing
-        LPobjValue = rrr_sol_dict[scenario_index][0].meta_data.status.objValue
-        print("Runtime of scenario with index {} is {}.".format(scenario_index, total_runtime))
-        result[scenario_index] = {"RR": (scenario_index, total_runtime, LPobjValue)}
-
-    sep_pickle = None
-    with open(separation_lp_pickle, "r") as f:
-        sep_pickle = pickle.load(f)
-    print("Done: {}".format(sep_pickle))
-
-    sep_sol_dict = sep_pickle.algorithm_scenario_solution_dictionary['SeparationLPDynVMP']
-    list_of_scenario_indices_with_runtime = []
-    for scenario_index, value in rrr_sol_dict.iteritems():
-        sep_sol = sep_sol_dict[scenario_index][0]
-        result[scenario_index]['SEP'] = sep_sol
-        print sep_sol
-
-    with open(output_pickle, "w") as f:
-        pickle.dump(result, f)
-
-    with open(output_pickle, "r") as f:
-        foo = pickle.load(f)
 
 def extract_parameter_range(scenario_parameter_space_dict, key):
     if not isinstance(scenario_parameter_space_dict, dict):
