@@ -663,6 +663,8 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                 positions=[pos],
                 widths=[BOX_WIDTH],
                 patch_artist=True,
+                notch=True,
+                bootstrap=1000,
             ))
         for bplot, color in zip(
                 bplots,
