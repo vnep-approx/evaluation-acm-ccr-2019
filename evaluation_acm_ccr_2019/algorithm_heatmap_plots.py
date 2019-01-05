@@ -40,6 +40,8 @@ except ImportError:
 
 import matplotlib
 import matplotlib.patheffects as PathEffects
+import matplotlib.patches as mpatches
+from matplotlib import gridspec
 import yaml
 from matplotlib import font_manager
 import matplotlib.lines as mlines
@@ -1284,7 +1286,6 @@ def _construct_filter_specs(scenario_parameter_space_dict, parameter_filter_keys
 
 
 
-
 class ComparisonHeatmapPlotter(SingleHeatmapPlotter):
 
     def __init__(self,
@@ -1417,6 +1418,7 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
 
     def plot_figure(self, filter_specifications):
         self.plot_profit_ecdf(filter_specifications)
+        self.plot_relative_performance_Vine_and_RandRound(filter_specifications)
 
     def plot_profit_ecdf(self, filter_specifications):
 
@@ -1446,7 +1448,7 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
         result = self.compute_relative_profits_arrays(scenario_ids)
         print result
 
-        fix, axs = plt.subplots(nrows=2, figsize=(5, 4), sharex="col")
+        fig, axs = plt.subplots(nrows=2, figsize=(5, 4), sharex="col")
         # ax.set_xscale("log", basex=10)
 
         #colors_erf = ['k', 'g', 'b', 'r', 'y']
@@ -1508,11 +1510,11 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
                 if j == 1:
                     ax.set_xlabel("profit(RR) / profit(ViNE)", fontsize=14)
 
-        fix.subplots_adjust(top=0.825)
-        fix.subplots_adjust(bottom=0.15)
-        fix.subplots_adjust(right=0.78)
-        fix.subplots_adjust(hspace=0.3)
-        fix.subplots_adjust(left=0.18)
+        fig.subplots_adjust(top=0.825)
+        fig.subplots_adjust(bottom=0.15)
+        fig.subplots_adjust(right=0.78)
+        fig.subplots_adjust(hspace=0.3)
+        fig.subplots_adjust(left=0.18)
 
         first_legend = plt.legend(handles=erf_legend_handlers, title="ERF", loc=4, fontsize=14,
                                   handletextpad=0.35, bbox_to_anchor=(1,0.25), bbox_transform = plt.gcf().transFigure,
@@ -1548,6 +1550,320 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
         # gridlines = ax.get_xgridlines() + ax.get_ygridlines()
         # for line in gridlines:
         #     line.set_linestyle(':')
+
+        self._show_and_or_save_plots(output_path, filename, perform_tight_layout=False)
+
+
+    def plot_relative_performance_Vine_and_RandRound(self, filter_specifications):
+
+        output_filename = "boxplot_relative_performance"
+
+        output_path, filename = self._construct_output_path_and_filename(output_filename,
+                                                                         filter_specifications)
+
+        logger.debug("output_path is {};\t filename is {}".format(output_path, filename))
+
+        if not self.overwrite_existing_files and os.path.exists(filename):
+            logger.info("Skipping generation of {} as this file already exists".format(filename))
+            return
+
+        if filter_specifications:
+            for filter_specification in filter_specifications:
+                if filter_specification["parameter"] == "number_of_requests":
+                    logger.info("Skipping generation of {} as this conflicts with the filter specification {}".format(
+                        output_filename, filter_specification))
+                    return
+
+        scenario_ids = self._obtain_scenarios_based_on_filters(filter_specifications)
+
+        if self.forbidden_scenario_ids:
+            scenario_ids = scenario_ids - self.forbidden_scenario_ids
+
+
+        vine_settings_list = get_list_of_vine_settings()
+        rr_settings_list = get_list_of_rr_settings()
+
+        plot_data_raw = {vine_settings: {scenario_id: None for scenario_id in scenario_ids} for vine_settings in vine_settings_list}
+        plot_data_raw.update({rr_settings: {scenario_id: None for scenario_id in scenario_ids} for rr_settings in rr_settings_list})
+
+
+        for scenario_id in scenario_ids:
+            best_vine = max([self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max for vine_settings in vine_settings_list])
+            best_rr = max([self._lookup_randround_solution(scenario_id).profits[rr_settings].max for rr_settings in rr_settings_list])
+            best_bound = self._lookup_randround_solution(scenario_id).lp_profit
+            best_vine = best_bound
+            best_rr = best_bound
+
+            for vine_settings in vine_settings_list:
+                plot_data_raw[vine_settings][scenario_id] = (
+                    100.0 * self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max / best_vine,
+                    100.0 * self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.mean / best_vine
+                )
+            for rr_settings in rr_settings_list:
+                plot_data_raw[rr_settings][scenario_id] = (
+                    100.0 * self._lookup_randround_solution(scenario_id).profits[rr_settings].max / best_rr,
+                    100.0 * self._lookup_randround_solution(scenario_id).profits[rr_settings].mean / best_rr
+                )
+
+        y_min = -5
+        y_max = 105
+
+        fig, axs = plt.subplots(ncols=2, nrows=1, figsize=(5, 4), gridspec_kw={'width_ratios': [13,20]}, sharey="row")
+        ax = axs[0]
+
+        vine_det = []
+        vine_rand = []
+
+        for vine_settings in vine_settings_list:
+            if vine_settings.edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE:
+                continue
+            if vine_settings.rounding_procedure == vine.ViNERoundingProcedure.DETERMINISTIC:
+                vine_det.append(vine_settings)
+            else:
+                vine_rand.append(vine_settings)
+
+        ordered_vine_settings = [vine_det, vine_rand]
+
+        positions = []
+        values = []
+
+        minor_labels = []
+        minor_label_locations = []
+
+        major_labels = []
+        major_label_locations = []
+        current_pos = 0.5
+
+
+        cmap = plt.get_cmap("inferno")
+
+        color_best = cmap(0.6)
+        color_mean = cmap(0)
+        color_def = cmap(0.6)
+
+        colors = []
+
+        # vine!
+        for i in range(2):
+            # i == 0: det
+            # i == 1: rand
+            for vine_settings in ordered_vine_settings[i]:
+                if i == 0:
+                    current_values = [plot_data_raw[vine_settings][scenario_id][0] for scenario_id in scenario_ids]
+                    values.append(current_values)
+                    positions.append(current_pos)
+                    if vine_settings.lp_objective == vine.ViNELPObjective.ViNE_LB_DEF:
+                        minor_labels.append("L")
+                    else:
+                        minor_labels.append("C")
+                    minor_label_locations.append(current_pos)
+                    current_pos += 1.75
+                    colors.append(color_def)
+                else:
+                    for j in range(2):
+                        current_values = [plot_data_raw[vine_settings][scenario_id][j] for scenario_id in scenario_ids]
+                        values.append(current_values)
+                        positions.append(current_pos)
+                        current_pos += 0.75
+                        if j == 0:
+                            colors.append(color_best)
+                        else:
+                            colors.append(color_mean)
+
+                    if vine_settings.lp_objective == vine.ViNELPObjective.ViNE_LB_DEF:
+                        minor_labels.append("L")
+                    else:
+                        minor_labels.append("C")
+                    minor_label_locations.append((positions[-1] + positions[-2]) / 2.0)
+                    current_pos += 0.5
+            if i == 0:
+                major_label_locations.append(np.mean(positions))
+                major_labels.append("Det.")
+                current_pos += 0.75
+            else:
+                major_label_locations.append((positions[2] + positions[-1]) / 2.0)
+                major_labels.append("Rand.")
+
+
+        # bplots = []
+        #
+        # for _bin, pos in zip(values, positions):
+        #     print "plot...", pos
+        #     bplots.append(ax.boxplot(x=_bin,
+        #                              positions=[pos],
+        #                              widths=[0.5],
+        #                              patch_artist=True))
+
+        bplots = ax.boxplot(x=values,
+                            positions=positions,
+                            widths=[0.5]*len(positions),
+                            patch_artist=True,
+                            notch=True,
+                            bootstrap=10000)
+
+
+        for i in range(len(bplots)):
+            color = colors[i]
+            bplots['boxes'][i].set_edgecolor(color)
+            bplots['boxes'][i].set_facecolor(
+                matplotlib.colors.to_rgba(color, alpha=0.3)
+            )
+
+            for keyword in ["medians", "fliers", "whiskers", "caps"]:
+                if keyword == "whiskers" or keyword == "caps":
+                    bplots[keyword][i * 2].set_color(color)
+                    bplots[keyword][i * 2 + 1].set_color(color)
+                else:
+                    bplots[keyword][i].set_color(color)
+                if keyword == "fliers":
+                    bplots[keyword][i].set(
+                        marker='o',
+                        markeredgecolor=matplotlib.colors.to_rgba(color, alpha=0.15),
+                    )
+
+
+        ax.set_ylim(y_min, y_max)
+
+        for k in range(len(minor_label_locations)):
+            ax.text(x=minor_label_locations[k], y=y_min - 11, s=minor_labels[k], horizontalalignment='center', fontdict={'fontsize': 14})
+
+        for k in range(len(major_label_locations)):
+            ax.text(x=major_label_locations[k], y=y_min - 21, s=major_labels[k], horizontalalignment='center', fontdict={'fontsize': 14})
+
+        ax.set_xticks([])
+
+        ax.set_yticks([x * 10 for x in range(1, 10,2)], minor=True)
+
+        ax.grid(True, which="major", linestyle="-")
+        ax.grid(True, which="minor", linestyle=":")
+
+        ax.set_title("ViNE", fontsize=15.5)
+
+        ax.set_ylabel("Relative Performance [%]", fontsize=14)
+
+
+        # RAND ROUND!
+
+        ax = axs[1]
+
+
+        rr_no_recomp = [(treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.RANDOM),
+                        (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
+                        (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
+        rr_recomp = [(treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION, treewidth_model.RoundingOrder.RANDOM),
+                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION, treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
+                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION, treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
+
+        ordered_rr_settings = [rr_no_recomp, rr_recomp]
+
+        positions = []
+        values = []
+
+        minor_labels = []
+        minor_label_locations = []
+
+        major_labels = []
+        major_label_locations = []
+        current_pos = 0.5
+
+        colors = []
+
+        fig.subplots_adjust(bottom=0.18, top=0.84, right=0.83, wspace=0.12)
+
+        # rand round
+        for i in range(2):
+            # i == 0: no_recomp
+            # i == 1: recomp!
+            for rr_settings in ordered_rr_settings[i]:
+                for j in range(2):
+                    current_values = [plot_data_raw[rr_settings][scenario_id][j] for scenario_id in scenario_ids]
+                    values.append(current_values)
+                    positions.append(current_pos)
+                    current_pos += 0.75
+                    if j == 0:
+                        colors.append(color_best)
+                    else:
+                        colors.append(color_mean)
+
+                if rr_settings[1] == treewidth_model.RoundingOrder.RANDOM:
+                    minor_labels.append("R")
+                elif rr_settings[1] == treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT:
+                    minor_labels.append("A")
+                elif rr_settings[1] == treewidth_model.RoundingOrder.STATIC_REQ_PROFIT:
+                    minor_labels.append("S")
+                else:
+                    raise ValueError()
+                minor_label_locations.append((positions[-1] + positions[-2]) / 2.0)
+                current_pos += 0.5
+
+            if i == 0:
+                major_label_locations.append(np.mean(positions))
+                major_labels.append("No Recomp.")
+                current_pos += 1
+            else:
+                major_label_locations.append((positions[6] + positions[-1]) / 2.0)
+                major_labels.append("Recomp.")
+
+
+        bplots = ax.boxplot(x=values,
+                            positions=positions,
+                            widths=[0.5] * len(positions),
+                            patch_artist=True,
+                            notch=True,
+                            bootstrap=1000)
+
+        print bplots
+        print colors
+
+        for i in range(len(positions)):
+            print "Setting color of boxplot ", i
+            color = colors[i]
+            bplots['boxes'][i].set_edgecolor(color)
+            bplots['boxes'][i].set_facecolor(
+                matplotlib.colors.to_rgba(color, alpha=0.3)
+            )
+
+            for keyword in ["medians", "fliers", "whiskers", "caps"]:
+                if keyword == "whiskers" or keyword == "caps":
+                    bplots[keyword][i * 2].set_color(color)
+                    bplots[keyword][i * 2 + 1].set_color(color)
+                else:
+                    bplots[keyword][i].set_color(color)
+                if keyword == "fliers":
+                    bplots[keyword][i].set(
+                        marker='o',
+                        markeredgecolor=matplotlib.colors.to_rgba(color, alpha=0.15),
+                    )
+
+        ax.set_ylim(y_min, y_max)
+
+        for k in range(len(minor_label_locations)):
+            ax.text(x=minor_label_locations[k], y=y_min - 11, s=minor_labels[k], horizontalalignment='center', fontdict={'fontsize': 14})
+
+        for k in range(len(major_label_locations)):
+            ax.text(x=major_label_locations[k], y=y_min - 21, s=major_labels[k], horizontalalignment='center', fontdict={'fontsize': 14})
+
+        ax.set_xticks([])
+
+        ax.set_title("RR Heuristics", fontsize=15.5)
+
+        ax.set_yticks([x * 10 for x in range(1, 10,2)], minor=True)
+
+        ax.grid(True, which="major", linestyle="-")
+        ax.grid(True, which="minor", linestyle=":")
+
+
+
+        #LEGEND!
+
+        best_patch = mpatches.Patch(color=matplotlib.colors.to_rgba(color_best, alpha=0.6), label='best')
+        mean_patch = mpatches.Patch(color=matplotlib.colors.to_rgba(color_mean, alpha=0.6), label='mean')
+
+        plt.legend(handles=[best_patch, mean_patch], loc=4, fontsize=14,handlelength=0.5,
+                                  handletextpad=0.35, bbox_to_anchor=(1, 0.5), bbox_transform=plt.gcf().transFigure,
+                                  borderaxespad=0.175, borderpad=0.2)
+
+        plt.suptitle("Performance of Algorithm Variants", fontsize=17)
 
         self._show_and_or_save_plots(output_path, filename, perform_tight_layout=False)
 
