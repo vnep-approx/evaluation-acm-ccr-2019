@@ -30,6 +30,7 @@ import os
 from itertools import combinations, product
 from time import gmtime, strftime
 
+import matplotlib.patches as mpatches
 import matplotlib.colors
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,11 +52,11 @@ BOX_WIDTH = 0.5
 BOX_SEPARATION_WITHIN_GROUP = 0.6
 BOX_SEPARATION_BETWEEN_GROUPS = 0.3
 
-PLOT_TITLE_FONTSIZE = 17
+PLOT_TITLE_FONTSIZE = 18
 AXIS_LABEL_FONTSIZE = 16
-LEGEND_TITLE_FONTSIZE = 15
-LEGEND_LABEL_FONTSIZE = 14
-AXIS_TICKLABEL_FONTSIZE = 14
+LEGEND_TITLE_FONTSIZE = 16
+LEGEND_LABEL_FONTSIZE = 15
+AXIS_TICKLABEL_FONTSIZE = 14.8
 
 logger = util.get_logger(__name__, make_file=False, propagate=True)
 
@@ -158,7 +159,7 @@ def lookup_rounding_runtimes(rr_result):
 
 
 lp_runtime_metric = dict(
-    name="LP Runtime",
+    name="$\mathsf{LP}_{\mathsf{DynVMP}}$ Runtime",
     y_axis_title="Runtime [s]",
     lookup_function=lambda rr_result: rr_result.lp_time_optimization + rr_result.lp_time_preprocess,
     result_num="single",
@@ -166,7 +167,7 @@ lp_runtime_metric = dict(
 )
 
 lp_rounding_time_metric = dict(
-    name="Rounding Runtime",
+    name="Recomp. Heuristic Runtime",
     y_axis_title="Runtime [s]",
     lookup_function=lambda rr_result: lookup_rounding_runtimes(rr_result),
     result_num="many",
@@ -184,10 +185,62 @@ lp_dynvmp_time_metric = dict(
     filename="lp_dynvmp_time_total",
 )
 
+lp_dynvmp_time_metric_percentage = dict(
+    name="Sep. Runtime Share    ",
+    y_axis_title="Fraction of Total [%]",
+    lookup_function=lambda rr_result: 100.0*(rr_result.lp_time_optimization +
+                                      rr_result.lp_time_preprocess -
+                                      rr_result.lp_time_tree_decomposition.mean * rr_result.lp_time_tree_decomposition.value_count -
+                                      rr_result.lp_time_gurobi_optimization.mean * rr_result.lp_time_gurobi_optimization.value_count)/(rr_result.lp_time_optimization +
+                                      rr_result.lp_time_preprocess),
+    result_num="single",
+    non_log=True,
+    filename="lp_dynvmp_time_total_percentage",
+)
+
+lp_dynvmp_time_metric_average_single_runtime = dict(
+    name="Avg. DynVMP Runtime",
+    y_axis_title="Runtime [s]",
+    lookup_function=lambda rr_result: [res.mean for res in rr_result.lp_time_dynvmp_computation],
+    result_num="many",
+    filename="lp_dynvmp_time_computation_per_request",
+)
+
+lp_dynvmp_time_metric_average_separation_runtime = dict(
+    name="Separation Runtime     ",
+    y_axis_title="Runtime [s]",
+    lookup_function=lambda rr_result: sum([res.mean for res in rr_result.lp_time_dynvmp_computation]),
+    result_num="single",
+    filename="lp_dynvmp_time_per_separation",
+)
+
+
+
+lp_dynvmp_init_time_metric_sum = dict(
+    name="LP DynVMP Initialization (Sum)",
+    y_axis_title="Runtime [s]",
+    lookup_function=lambda rr_result: rr_result.lp_time_dynvmp_initialization.mean * rr_result.lp_time_dynvmp_initialization.value_count,
+    result_num="single",
+    filename="lp_dynvmp_init_sum",
+)
+
+lp_dynvmp_init_time_metric_mean = dict(
+    name="LP DynVMP Initialization (Mean)",
+    y_axis_title="Runtime [s]",
+    lookup_function=lambda rr_result: rr_result.lp_time_dynvmp_initialization.mean,
+    result_num="single",
+    filename="lp_dynvmp_init_mean",
+)
+
 global_metric_specifications = (
     lp_runtime_metric,
     lp_rounding_time_metric,
-    lp_dynvmp_time_metric
+    lp_dynvmp_time_metric,
+    lp_dynvmp_time_metric_percentage,
+    lp_dynvmp_init_time_metric_sum,
+    lp_dynvmp_init_time_metric_mean,
+    lp_dynvmp_time_metric_average_single_runtime,
+    lp_dynvmp_time_metric_average_separation_runtime
 )
 
 """
@@ -214,7 +267,7 @@ boxplot_axes_specification_requests_treewidth = dict(
 boxplot_axes_specification_requests_num_req = dict(
     x_axis_parameter="number_of_requests",
     x_axis_title="Number of Requests",
-    x_axis_title_short="#requests",
+    x_axis_title_short="#req.",
 )
 
 boxplot_outer_axes_specifications = (
@@ -412,12 +465,12 @@ class AbstractPlotter(object):
 
     def _construct_output_path_and_filename(self, title, filter_specifications=None):
         filter_spec_path = ""
-        filter_filename = "no_filter.{}".format(OUTPUT_FILETYPE)
+        filter_filename = "no_filter.{}".format(self.output_filetype)
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
         base = os.path.normpath(OUTPUT_PATH)
         date = strftime("%Y-%m-%d", gmtime())
-        output_path = os.path.join(base, date, OUTPUT_FILETYPE, "general_plots", filter_spec_path)
+        output_path = os.path.join(base, date, self.output_filetype, "general_plots", filter_spec_path)
         filename = os.path.join(output_path, title + "_" + filter_filename)
         return output_path, filename
 
@@ -427,7 +480,7 @@ class AbstractPlotter(object):
         for spec in filter_specifications:
             filter_path = os.path.join(filter_path, (spec['parameter'] + "_" + str(spec['value'])))
             filter_filename += spec['parameter'] + "_" + str(spec['value']) + "_"
-        filter_filename = filter_filename[:-1] + "." + OUTPUT_FILETYPE
+        filter_filename = filter_filename[:-1] + "." + self.output_filetype
         return filter_path, filter_filename
 
     def _obtain_scenarios_based_on_filters(self, filter_specifications=None):
@@ -501,7 +554,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                                             inner_axis, outer_axis,
                                             filter_specifications=None):
         filter_spec_path = ""
-        filter_filename = "no_filter.{}".format(OUTPUT_FILETYPE)
+        filter_filename = "no_filter.{}".format(self.output_filetype)
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
 
@@ -511,9 +564,9 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
         sub_param_string = self.algorithm_variant_to_be_considered
 
         if sub_param_string is not None:
-            output_path = os.path.join(base, date, OUTPUT_FILETYPE, axes_foldername, sub_param_string, filter_spec_path)
+            output_path = os.path.join(base, date, self.output_filetype, axes_foldername, sub_param_string, filter_spec_path)
         else:
-            output_path = os.path.join(base, date, OUTPUT_FILETYPE, axes_foldername, filter_spec_path)
+            output_path = os.path.join(base, date, self.output_filetype, axes_foldername, filter_spec_path)
 
         fname = "{}__{}".format(metric_specification["filename"], filter_filename)
         filename = os.path.join(output_path, fname)
@@ -621,7 +674,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
             solution_count_string = "between {} and {} values per square".format(min_number_of_observed_values,
                                                                                  max_number_of_observed_values)
 
-        fig, ax = plt.subplots(figsize=(5, 4))
+        fig, ax = plt.subplots(figsize=(4.5, 3.5))
         if self.paper_mode:
             ax.set_title(metric_specification["name"], fontsize=PLOT_TITLE_FONTSIZE)
         else:
@@ -689,22 +742,23 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                 )
 
         legend_handles = [
-            matplotlib.lines.Line2D([], [], color=color, alpha=1, linestyle="-", label=label, linewidth=2.5)
+            mpatches.Patch(color=matplotlib.colors.to_rgba(color, alpha=0.6), label=label)
             for (val, (label, color)) in sorted(labels.items())
         ]
 
-        fig.subplots_adjust(top=0.825)
-        fig.subplots_adjust(bottom=0.15)
-        fig.subplots_adjust(right=0.78)
-        fig.subplots_adjust(hspace=0.3)
-        fig.subplots_adjust(left=0.18)
+        #fig.subplots_adjust(top=0.85)
+        #fig.subplots_adjust(bottom=0.125)
+        fig.subplots_adjust(right=0.8)
+        #fig.subplots_adjust(hspace=0.3)
+        #fig.subplots_adjust(left=0.15)
 
         legend = plt.legend(handles=legend_handles,
                             title=inner_axis["x_axis_title_short"],
                             loc='center right',
                             fontsize=LEGEND_LABEL_FONTSIZE,
                             handletextpad=0.35, bbox_to_anchor=(0.99, 0.5), bbox_transform=plt.gcf().transFigure,
-                            borderaxespad=-0.175, borderpad=0.2)
+                            borderaxespad=-0.175, borderpad=0.2,
+                            handlelength=0.35)
         legend.get_frame().set_alpha(1.0)
         legend.get_frame().set_facecolor("#FFFFFF")
         plt.setp(legend.get_title(), fontsize=LEGEND_TITLE_FONTSIZE)
@@ -714,12 +768,22 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
         ax.set_xticks(x_ticks, minor=False)
         ax.set_xticklabels(outer_axis_parameters, minor=False, fontsize=AXIS_TICKLABEL_FONTSIZE)
 
-        ax.set_yscale("log", nonposy='clip')
+        if not "non_log" in metric_specification.keys():
+            ax.set_yscale("log", nonposy='clip')
+
+        ax.yaxis.grid(True, which="major", linestyle="-")
+        ax.yaxis.grid(True, which="minor", linestyle=":", linewidth=0.8, alpha=0.4)
 
         for label in ax.get_yticklabels():
             plt.setp(label, fontsize=AXIS_TICKLABEL_FONTSIZE)
         ax.set_xlabel(outer_axis['x_axis_title'], fontsize=AXIS_LABEL_FONTSIZE)
         ax.set_ylabel(metric_specification["y_axis_title"], fontsize=AXIS_LABEL_FONTSIZE)
+
+        # plt.tight_layout()
+
+        # if "additional_hlines_at" in metric_specification:
+        #     for y in metric_specification["additional_hlines_at"]:
+        #         ax.axhline(y, linestyle=':', color='gray', alpha=0.4, linewidth=0.8)
 
         self._show_and_or_save_plots(output_path, filename)
         plt.close(fig)
