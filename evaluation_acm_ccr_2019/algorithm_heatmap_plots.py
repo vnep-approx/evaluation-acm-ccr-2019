@@ -55,7 +55,8 @@ from evaluation_acm_ccr_2019 import plot_data
 REQUIRED_FOR_PICKLE = solutions  # this prevents pycharm from removing this import, which is required for unpickling solutions
 
 OUTPUT_PATH = None
-OUTPUT_FILETYPE = "png"
+OUTPUT_FILETYPE = "pdf"
+FIGSIZE = (5,3.5)
 
 logger = util.get_logger(__name__, make_file=False, propagate=True)
 
@@ -203,7 +204,7 @@ class AbstractHeatmapSpecificationVineFactory(object):
         for vine_settings in vine_settings_list:
             result.append(([vine_settings], cls.get_specific_vine_name(vine_settings)))
 
-        # third: each aggregation level, when applicable, i.e. there is more than one setting for that
+        #third: each aggregation level, when applicable, i.e. there is more than one setting for that
         for edge_embedding_model in vine.ViNEEdgeEmbeddingModel:
             matching_settings = []
             for vine_settings in vine_settings_list:
@@ -265,11 +266,11 @@ class HSF_Vine_Runtime(AbstractHeatmapSpecificationVineFactory):
 
     prototype = dict(
         name="ViNE: Mean Runtime [s]",
-        filename="mean_runtime",
+        filename="vine_mean_runtime",
         vmin=0,
         vmax=20,
         alg_variant=None,
-        colorbar_ticks=[x for x in range(0, 11, 20)],
+        colorbar_ticks=[x for x in range(0, 21, 4)],
         cmap="Greys",
         plot_type=HeatmapPlotType.ViNE,
         lookup_function=lambda vine_result_dict, vine_settings_list: compute_aggregated_mean([
@@ -281,55 +282,55 @@ class HSF_Vine_Runtime(AbstractHeatmapSpecificationVineFactory):
     )
 
 
-class HSF_Vine_MaxNodeLoad(AbstractHeatmapSpecificationVineFactory):
-    prototype = dict(
-        name="ViNE: Max. Node Load [%]",
-        filename="max_node_load",
-        vmin=0.0,
-        vmax=100,
-        colorbar_ticks=[x for x in range(0, 101, 20)],
-        cmap="Oranges",
-        plot_type=HeatmapPlotType.ViNE,
-        lookup_function=lambda vine_result_dict, vine_settings_list: max(
-            vine_result.max_node_load.max
-            for vine_settings in vine_settings_list
-            for vine_result in vine_result_dict[vine_settings]
-        )
-    )
-
-class HSF_Vine_MaxEdgeLoad(AbstractHeatmapSpecificationVineFactory):
-
-    prototype = dict(
-        name="ViNE: Max. Edge Load [%]",
-        filename="max_edge_load",
-        vmin=0.0,
-        vmax=100,
-        colorbar_ticks=[x for x in range(0, 101, 20)],
-        cmap="Purples",
-        plot_type=HeatmapPlotType.ViNE,
-        lookup_function=lambda vine_result_dict, vine_settings_list: max(
-            vine_result.max_edge_load.max
-            for vine_settings in vine_settings_list
-            for vine_result in vine_result_dict[vine_settings]
-        )
-    )
-
-class HSF_Vine_MaxLoad(AbstractHeatmapSpecificationVineFactory):
-
-    prototype = dict(
-        name="ViNE: MaxLoad (Edge and Node)",
-        filename="max_load",
-        vmin=0.0,
-        vmax=100,
-        colorbar_ticks=[x for x in range(0, 101, 20)],
-        cmap="Reds",
-        plot_type=HeatmapPlotType.ViNE,
-        lookup_function=lambda vine_result_dict, vine_settings_list: max(
-            max(vine_result.max_node_load.max, vine_result.max_edge_load.max)
-            for vine_settings in vine_settings_list
-            for vine_result in vine_result_dict[vine_settings]
-        )
-    )
+# class HSF_Vine_MaxNodeLoad(AbstractHeatmapSpecificationVineFactory):
+#     prototype = dict(
+#         name="ViNE: Max. Node Load [%]",
+#         filename="max_node_load",
+#         vmin=0.0,
+#         vmax=100,
+#         colorbar_ticks=[x for x in range(0, 101, 20)],
+#         cmap="Oranges",
+#         plot_type=HeatmapPlotType.ViNE,
+#         lookup_function=lambda vine_result_dict, vine_settings_list: max(
+#             vine_result.max_node_load.max
+#             for vine_settings in vine_settings_list
+#             for vine_result in vine_result_dict[vine_settings]
+#         )
+#     )
+#
+# class HSF_Vine_MaxEdgeLoad(AbstractHeatmapSpecificationVineFactory):
+#
+#     prototype = dict(
+#         name="ViNE: Max. Edge Load [%]",
+#         filename="max_edge_load",
+#         vmin=0.0,
+#         vmax=100,
+#         colorbar_ticks=[x for x in range(0, 101, 20)],
+#         cmap="Purples",
+#         plot_type=HeatmapPlotType.ViNE,
+#         lookup_function=lambda vine_result_dict, vine_settings_list: max(
+#             vine_result.max_edge_load.max
+#             for vine_settings in vine_settings_list
+#             for vine_result in vine_result_dict[vine_settings]
+#         )
+#     )
+#
+# class HSF_Vine_MaxLoad(AbstractHeatmapSpecificationVineFactory):
+#
+#     prototype = dict(
+#         name="ViNE: MaxLoad (Edge and Node)",
+#         filename="max_load",
+#         vmin=0.0,
+#         vmax=100,
+#         colorbar_ticks=[x for x in range(0, 101, 20)],
+#         cmap="Reds",
+#         plot_type=HeatmapPlotType.ViNE,
+#         lookup_function=lambda vine_result_dict, vine_settings_list: max(
+#             max(vine_result.max_node_load.max, vine_result.max_edge_load.max)
+#             for vine_settings in vine_settings_list
+#             for vine_result in vine_result_dict[vine_settings]
+#         )
+#     )
 
 class AbstractHeatmapSpecificationSepLPRRFactory(object):
 
@@ -414,52 +415,119 @@ class AbstractHeatmapSpecificationSepLPRRFactory(object):
     def get_all_hs(cls):
         return [cls.get_hs(rr_settings, name) for rr_settings, name in cls.get_all_rr_settings_list_with_names()]
 
-class HSF_RR_MaxNodeLoad(AbstractHeatmapSpecificationSepLPRRFactory):
+# class HSF_RR_MaxNodeLoad(AbstractHeatmapSpecificationSepLPRRFactory):
+#     prototype = dict(
+#         name="RR: Max node load",
+#         filename="randround_max_node_load",
+#         vmin=0.0,
+#         vmax=100,
+#         colorbar_ticks=[x for x in range(0, 101, 20)],
+#         cmap="Reds",
+#         plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+#         lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: 100.0 * np.mean([value for rr_seplp_settings in rr_seplp_settings_list for value in rr_seplp_result.max_node_loads[rr_seplp_settings]])
+#     )
+#
+# class HSF_RR_MaxEdgeLoad(AbstractHeatmapSpecificationSepLPRRFactory):
+#     prototype = dict(
+#         name="RR: Max edge load",
+#         filename="randround_max_edge_load",
+#         vmin=0.0,
+#         vmax=100,
+#         colorbar_ticks=[x for x in range(0, 101, 20)],
+#         cmap="Reds",
+#         plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+#         lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: 100.0 * np.mean([value for rr_seplp_settings in rr_seplp_settings_list for value in rr_seplp_result.max_edge_loads[rr_seplp_settings]])
+#     )
+#
+# class HSF_RR_MeanProfit(AbstractHeatmapSpecificationSepLPRRFactory):
+#     prototype = dict(
+#         name="RR: Mean Profit",
+#         filename="randround_mean_profit",
+#         vmin=0.0,
+#         vmax=100,
+#         colorbar_ticks=[x for x in range(0, 101, 20)],
+#         cmap="Reds",
+#         plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+#         lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: np.mean([value for rr_seplp_settings in rr_seplp_settings_list for value in rr_seplp_result.profits[rr_seplp_settings]])
+#     )
+
+class HSF_RR_MeanRoundingRuntime(AbstractHeatmapSpecificationSepLPRRFactory):
     prototype = dict(
-        name="RR: Max node load",
-        filename="max_node_load",
+        name="RR: Mean Rounding Runtime",
+        filename="randround_mean_profit",
         vmin=0.0,
-        vmax=100,
-        colorbar_ticks=[x for x in range(0, 101, 20)],
+        vmax=200,
+        colorbar_ticks=[x for x in range(0, 201, 40)],
         cmap="Reds",
         plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: 100.0 * np.mean([value for rr_seplp_settings in rr_seplp_settings_list for value in rr_seplp_result.max_node_loads[rr_seplp_settings]])
+        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: np.mean([rr_seplp_result.rounding_runtimes[rr_seplp_settings].mean for rr_seplp_settings in rr_seplp_settings_list])
     )
 
-class HSF_RR_MaxEdgeLoad(AbstractHeatmapSpecificationSepLPRRFactory):
+class HSF_RR_MeanDynVMPInitTimes(AbstractHeatmapSpecificationSepLPRRFactory):
     prototype = dict(
-        name="RR: Max edge load",
-        filename="max_edge_load",
+        name="RR: Mean DynVMP Initialization Runtimes",
+        filename="randround_mean_dynvmp_initialization",
         vmin=0.0,
-        vmax=100,
-        colorbar_ticks=[x for x in range(0, 101, 20)],
+        vmax=50,
+        colorbar_ticks=[x for x in range(0, 51, 10)],
         cmap="Reds",
         plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: 100.0 * np.mean([value for rr_seplp_settings in rr_seplp_settings_list for value in rr_seplp_result.max_edge_loads[rr_seplp_settings]])
+        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: rr_seplp_result.lp_time_dynvmp_initialization.mean * rr_seplp_result.lp_time_dynvmp_initialization.value_count
     )
 
-class HSF_RR_MeanProfit(AbstractHeatmapSpecificationSepLPRRFactory):
-    prototype = dict(
-        name="RR: Mean Profit",
-        filename="mean_profit",
-        vmin=0.0,
-        vmax=100,
-        colorbar_ticks=[x for x in range(0, 101, 20)],
-        cmap="Reds",
-        plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: np.mean([value for rr_seplp_settings in rr_seplp_settings_list for value in rr_seplp_result.profits[rr_seplp_settings]])
-    )
+    @classmethod
+    def get_all_rr_settings_list_with_names(cls):
+        result = []
 
-class HSF_RR_Runtime(AbstractHeatmapSpecificationSepLPRRFactory):
+        rr_settings_list = get_list_of_vine_settings()
+        result.append(([rr_settings_list[0]], "rr_seplp_ALL"))  # select arbitrary rr_settings to derive plots from
+
+        return result
+
+class HSF_RR_LP_Runtime(AbstractHeatmapSpecificationSepLPRRFactory):
     prototype = dict(
         name="RR: LP runtime",
-        filename="lp_runtime",
+        filename="randround_lp_runtime",
         vmin=0.0,
         vmax=100,
         colorbar_ticks=[x for x in range(0, 101, 20)],
         cmap="Blues",
         plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
-        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: rr_seplp_result.lp_time_optimization
+        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: rr_seplp_result.lp_time_optimization + rr_seplp_result.lp_time_preprocess
+    )
+
+    @classmethod
+    def get_all_rr_settings_list_with_names(cls):
+        result = []
+
+        rr_settings_list = get_list_of_vine_settings()
+        result.append(([rr_settings_list[0]], "rr_seplp_ALL"))  # select arbitrary rr_settings to derive plots from
+
+        return result
+
+
+class HSF_RR_Runtime(AbstractHeatmapSpecificationSepLPRRFactory):
+    prototype = dict(
+        name="RR: Rounding Runtime",
+        filename="randround_rounding_runtime",
+        vmin=0.0,
+        vmax=100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Blues",
+        plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: np.mean([rr_seplp_result.rounding_runtimes[rr_settings].mean for rr_settings in rr_seplp_settings_list])
+    )
+
+class HSF_RR_GeneratedMappings(AbstractHeatmapSpecificationSepLPRRFactory):
+    prototype = dict(
+        name="Generated Mappings [k]",
+        filename="lp_generated_mappings",
+        vmin=0.0,
+        vmax=25,
+        colorbar_ticks=[x for x in range(0, 26, 5)],
+        cmap="Greens",
+        plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
+        lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: rr_seplp_result.lp_generated_columns / 1000.0
     )
 
     @classmethod
@@ -523,7 +591,7 @@ class AbstractHeatmapSpecificationVineVsRandRoundFactory(object):
                 vine_settings_list_sp.append(vine_settings)
 
         result.append((vine_settings_list_sp, rr_settings_list, "vine_SP_vs_randround_ALL"))
-        result.append((vine_settings_list_mcf, rr_settings_list, "vine_MCF_vs_randround_ALL"))
+        #result.append((vine_settings_list_mcf, rr_settings_list, "vine_MCF_vs_randround_ALL"))
 
         return result
 
@@ -584,7 +652,7 @@ def _relative_profit_difference_to_lp_bound(vine_result, rr_result, vine_setting
 class HSF_Comp_BestProfit(AbstractHeatmapSpecificationVineVsRandRoundFactory):
 
     prototype = dict(
-        name="Relative Profit: rand round vs vine",
+        name="Relative Profit: rand round vs ViNE",
         filename="comparison_vine_rand_round",
         vmin=-100,
         vmax=+100,
@@ -616,7 +684,7 @@ class HSF_Comp_QualProfitDiff_RR(AbstractHeatmapSpecificationVineVsRandRoundFact
 class HSF_Comp_QualProfitDiff_Vine(AbstractHeatmapSpecificationVineVsRandRoundFactory):
 
     prototype = dict(
-        name="Qualitative Difference > 5%: Vine",
+        name="Qualitative Difference > 5%: ViNE",
         filename="qual_diff_5perc_vine",
         vmin=0,
         vmax=+100,
@@ -647,7 +715,7 @@ class HSF_Comp_RelProfitToLPBound_RR(AbstractHeatmapSpecificationVineVsRandRound
 class HSF_Comp_RelProfitToLPBound_Vine(AbstractHeatmapSpecificationVineVsRandRoundFactory):
 
     prototype = dict(
-        name="Rel. Profit: Vine",
+        name="Rel. Profit: ViNE",
         filename="rel_profit_lpbound_vine",
         vmin=0,
         vmax=+100,
@@ -660,15 +728,15 @@ class HSF_Comp_RelProfitToLPBound_Vine(AbstractHeatmapSpecificationVineVsRandRou
                                                                                                                                 rr_settings_list)
     )
 
-class HSF_Comp_RelProfitToLPBound_Vine(AbstractHeatmapSpecificationVineVsRandRoundFactory):
+class HSF_Comp_RelProfitToLPBound_RR_minus_Vine(AbstractHeatmapSpecificationVineVsRandRoundFactory):
 
     prototype = dict(
-        name="Rel. Profit Difference: RandRound vs. Vine",
+        name="Rel. Improv.: ($\mathsf{RR}_{\mathsf{best}}$ - $\mathsf{ViNE}_{\mathsf{best}}$)/$\mathsf{LP}_{\mathsf{UB}}$ [%]",
         filename="rel_profit_difference_lpbound",
-        vmin=-24,
-        vmax=+24,
-        colorbar_ticks=[x for x in range(-24, 24, 6)],
-        cmap="PuOr",
+        vmin=-25,
+        vmax=+25,
+        colorbar_ticks=[x for x in range(-24, 25, 6)],
+        cmap="RdBu_r",
         plot_type=HeatmapPlotType.ComparisonVineRandRound,
         lookup_function=lambda vine_result, rr_result, vine_settings_list, rr_settings_list : _relative_profit_difference_to_lp_bound(vine_result,
                                                                                                                                       rr_result,
@@ -680,22 +748,18 @@ class HSF_Comp_RelProfitToLPBound_Vine(AbstractHeatmapSpecificationVineVsRandRou
 
 
 
-global_heatmap_specfications = HSF_RR_MeanProfit.get_all_hs() + \
+global_heatmap_specfications = HSF_Vine_Runtime.get_all_hs() + \
+                               HSF_RR_MeanRoundingRuntime.get_all_hs() + \
+                               HSF_RR_MeanDynVMPInitTimes.get_all_hs() + \
+                               HSF_RR_GeneratedMappings.get_all_hs() + \
+                               HSF_RR_Runtime.get_all_hs() + \
+                               HSF_RR_LP_Runtime.get_all_hs() + \
                                HSF_Comp_BestProfit.get_all_hs() + \
                                HSF_Comp_QualProfitDiff_RR.get_all_hs() + \
                                HSF_Comp_QualProfitDiff_Vine.get_all_hs() + \
                                HSF_Comp_RelProfitToLPBound_RR.get_all_hs() + \
-                               HSF_Comp_RelProfitToLPBound_Vine.get_all_hs()
-
-# HSF_Vine_Runtime.get_all_hs() + \
-#                                HSF_Vine_MaxEdgeLoad.get_all_hs() + \
-#                                HSF_Vine_MaxNodeLoad.get_all_hs() + \
-#                                HSF_Vine_MaxLoad.get_all_hs() + \
-#                                HSF_RR_Runtime.get_all_hs() + \
-#                                HSF_RR_MaxNodeLoad.get_all_hs() + \
-#                                HSF_RR_MaxEdgeLoad.get_all_hs() + \
-
-
+                               HSF_Comp_RelProfitToLPBound_Vine.get_all_hs() + \
+                               HSF_Comp_RelProfitToLPBound_RR_minus_Vine.get_all_hs()
 
 heatmap_specifications_per_type = {
     plot_type_item: [
@@ -976,12 +1040,12 @@ class AbstractPlotter(object):
 
     def _construct_output_path_and_filename(self, title, filter_specifications=None):
         filter_spec_path = ""
-        filter_filename = "no_filter.{}".format(OUTPUT_FILETYPE)
+        filter_filename = "no_filter.{}".format(self.output_filetype)
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
         base = os.path.normpath(OUTPUT_PATH)
         date = strftime("%Y-%m-%d", gmtime())
-        output_path = os.path.join(base, date, OUTPUT_FILETYPE, "general_plots", filter_spec_path)
+        output_path = os.path.join(base, date, self.output_filetype, "general_plots", filter_spec_path)
         filename = os.path.join(output_path, title + "_" + filter_filename)
         return output_path, filename
 
@@ -991,7 +1055,7 @@ class AbstractPlotter(object):
         for spec in filter_specifications:
             filter_path = os.path.join(filter_path, (spec['parameter'] + "_" + str(spec['value'])))
             filter_filename += spec['parameter'] + "_" + str(spec['value']) + "_"
-        filter_filename = filter_filename[:-1] + "." + OUTPUT_FILETYPE
+        filter_filename = filter_filename[:-1] + "." + self.output_filetype
         return filter_path, filter_filename
 
     def _obtain_scenarios_based_on_filters(self, filter_specifications=None):
@@ -1069,7 +1133,7 @@ class SingleHeatmapPlotter(AbstractPlotter):
                                             heatmap_axes_specification,
                                             filter_specifications=None):
         filter_spec_path = ""
-        filter_filename = "no_filter.{}".format(OUTPUT_FILETYPE)
+        filter_filename = "no_filter.{}".format(self.output_filetype)
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
 
@@ -1079,9 +1143,9 @@ class SingleHeatmapPlotter(AbstractPlotter):
         sub_param_string = metric_specification['alg_variant']
 
         if sub_param_string is not None:
-            output_path = os.path.join(base, date, OUTPUT_FILETYPE, axes_foldername, sub_param_string, filter_spec_path)
+            output_path = os.path.join(base, date, self.output_filetype, axes_foldername, sub_param_string, filter_spec_path)
         else:
-            output_path = os.path.join(base, date, OUTPUT_FILETYPE, axes_foldername, filter_spec_path)
+            output_path = os.path.join(base, date, self.output_filetype, axes_foldername, filter_spec_path)
 
         fname = "__".join(str(x) for x in [
             metric_specification['filename'],
@@ -1204,7 +1268,7 @@ class SingleHeatmapPlotter(AbstractPlotter):
             solution_count_string = "between {} and {} values per square".format(min_number_of_observed_values,
                                                                                  max_number_of_observed_values)
 
-        fig, ax = plt.subplots(figsize=(5, 4))
+        fig, ax = plt.subplots(figsize=FIGSIZE)
         if self.paper_mode:
             ax.set_title(heatmap_metric_specification['name'], fontsize=17)
         else:
@@ -1213,7 +1277,7 @@ class SingleHeatmapPlotter(AbstractPlotter):
             if filter_specifications:
                 title += get_title_for_filter_specifications(filter_specifications) + "\n"
             title += solution_count_string + "\n"
-            title += "min: {:.2f}; mean: {:.2f}; max: {:.2f}".format(np.nanmin(observed_values),
+            title += "min: {:.4f}; mean: {:.4f}; max: {:.4f}".format(np.nanmin(observed_values),
                                                                      np.nanmean(observed_values),
                                                                      np.nanmax(observed_values))
 
@@ -1332,7 +1396,7 @@ class ComparisonHeatmapPlotter(SingleHeatmapPlotter):
                 for x in scenario_ids]
 
 
-class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
+class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
 
     def __init__(self,
                  output_path,
@@ -1351,9 +1415,9 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
                  vine_settings_to_consider=None,
                  rr_settings_to_consider=None
                  ):
-        super(ComparisonBaselineVsRRT_Scatter_and_ECDF, self).__init__(output_path, output_filetype, vine_solution_storage,
-                                                                       vine_algorithm_id, vine_execution_id, show_plot, save_plot,
-                                                                       overwrite_existing_files, forbidden_scenario_ids, paper_mode)
+        super(ComparisonPlotter_ECDF_BoxPlot, self).__init__(output_path, output_filetype, vine_solution_storage,
+                                                             vine_algorithm_id, vine_execution_id, show_plot, save_plot,
+                                                             overwrite_existing_files, forbidden_scenario_ids, paper_mode)
         self.randround_solution_storage = randround_solution_storage
         self.randround_algorithm_id = randround_algorithm_id
         self.randround_execution_id = randround_execution_id
@@ -1448,7 +1512,151 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
         result = self.compute_relative_profits_arrays(scenario_ids)
         print result
 
-        fig, axs = plt.subplots(nrows=2, figsize=(5, 4), sharex="col")
+        fig, axs = plt.subplots(nrows=2, figsize=FIGSIZE, sharex="col", sharey="row")
+        # ax.set_xscale("log", basex=10)
+
+        #colors_erf = ['k', 'g', 'b', 'r', 'y']
+        colors_erf = [plt.cm.inferno(val) for val in [0.8,0.6,0.4,0.2,0.0]]
+        max_observed_value = 0
+
+        linestyles = [":", "-.", "--", "-"]
+
+        number_requests_legend_handlers = []
+        erf_legend_handlers = []
+
+        for j, number_of_requests_list in enumerate([[40, 60], [80, 100]]):
+
+            for i, erf in enumerate(self._edge_rfs_list):
+
+                result_slice = np.zeros(0)
+
+                for number_of_requests in number_of_requests_list:
+                    result_slice = np.concatenate((result_slice, result[erf][number_of_requests]))
+
+                ratio_rr_better = (len(np.where(result_slice > 1.29999)[0]))/(float(len(result_slice)))
+                print "{:0.2f} {:^12s} {:0.10f}".format(erf, number_of_requests_list, ratio_rr_better)
+
+                sorted_data = np.sort(result_slice[~np.isnan(result_slice)])
+                max_observed_value = np.maximum(max_observed_value, sorted_data[-1])
+                yvals = np.arange(1, len(sorted_data) + 1) / float(len(sorted_data))
+                yvals *= 100
+                sorted_data *= 100
+                axs[j].plot(sorted_data, yvals, color=colors_erf[i], alpha=0.8, linestyle="-",
+                        label="{} {}".format(erf, number_of_requests_list), linewidth=2.8)
+
+                # if j == 0:
+                #     number_requests_legend_handlers.append(
+                #         matplotlib.lines.Line2D([], [], color='gray', linestyle=linestyles[j+2],
+                #                                 label='{}'.format(number_of_requests_list)))
+
+                if j == 0:
+                    erf_legend_handlers.append(matplotlib.lines.Line2D([], [], color=colors_erf[i], linestyle="-", linewidth=2.4,
+                                                               label='{}'.format(erf)))
+
+                ax = axs[j]
+
+                #ax.set_title("#Requests: {} & {}".format(number_of_requests_list[0],number_of_requests_list[1]), fontsize=15)
+                props = dict(boxstyle='round', facecolor='white', alpha=0.5)
+                ax.text(25, 95, "#req.:\n{} & {}".format(number_of_requests_list[0],number_of_requests_list[1]), fontsize=13, bbox=props, verticalalignment="top")
+                #ax.set_ylabel("ECDF [%]", fontsize=14)
+                ax.grid(True, which="both", linestyle=":")
+                ax.set_xlim(20,200)
+
+                major_x = [40, 70, 100, 130, 160, 190]
+                minor_x = [25, 55, 85, 115, 145, 175]
+                ax.set_xticks(major_x, minor=False)
+                ax.set_xticks(minor_x, minor=True)
+                for x in major_x:
+                    if x == 100:
+                        ax.axvline(x, linestyle=':', color='red', alpha=0.6, linewidth=0.8)
+                    else:
+                        ax.axvline(x, linestyle=':', color='gray', alpha=0.4, linewidth=0.8)
+
+                major_y = [0, 25, 50, 75, 100]
+
+                ax.set_yticks(major_y, minor=False)
+
+                for tick in ax.xaxis.get_major_ticks():
+                    tick.label.set_fontsize(15)
+                for tick in ax.yaxis.get_major_ticks():
+                    tick.label.set_fontsize(14.5)
+
+                if j == 1:
+                    ax.set_xlabel("profit($\mathsf{RR}_{\mathsf{best}}$) / profit($\mathsf{ViNE}_{\mathsf{best}}$) [%]", fontsize=15)
+
+        fig.text(0.01, 0.54, 'ECDF [%]', va='center', rotation='vertical', fontsize=15)
+        fig.subplots_adjust(top=0.9)
+        fig.subplots_adjust(bottom=0.18)
+        fig.subplots_adjust(right=0.78)
+        fig.subplots_adjust(hspace=0.1)
+        fig.subplots_adjust(left=0.16)
+
+        first_legend = plt.legend(handles=erf_legend_handlers, title="ERF", loc=4, fontsize=14,
+                                  handletextpad=0.35, bbox_to_anchor=(1,0.25), bbox_transform = plt.gcf().transFigure,
+             borderaxespad=0.175, borderpad=0.2)
+        plt.setp(first_legend.get_title(), fontsize='15')
+        plt.gca().add_artist(first_legend)
+
+
+        plt.setp(axs[0].get_xticklabels(), visible=True)
+
+        # o_leg = plt.legend(handles=number_requests_legend_handlers, loc=2, title="#Requests", fontsize=14,
+        #                    handletextpad=.35, borderaxespad=0.175, borderpad=0.2)
+        # plt.setp(o_leg.get_title(), fontsize='15')
+
+        plt.suptitle("Profit Comparison: $\mathsf{RR}_{\mathsf{best}}$ / $\mathsf{ViNE}_{\mathsf{best}}$", fontsize=17)
+        #ax.set_xlabel("rel profit$)", fontsize=16)
+
+
+        # for tick in ax.xaxis.get_major_ticks():
+        #     tick.label.set_fontsize(15.5)
+        # for tick in ax.yaxis.get_major_ticks():
+        #     tick.label.set_fontsize(15.5)
+
+        # ax.set_xticks([ 1, 1.5, 2, 2.5, 3, 3.5], minor=False)
+        # ax.set_xticks([0.75, 1.25, 1.5, 1.75, 2.25, 2.5, 2.75, 3.25, 3.5], minor=True)
+        # ax.set_yticks([x*0.1 for x in range(1,10)], minor=True)
+        # ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+
+        # ax.set_xticklabels([], minor=True)
+
+
+
+        # gridlines = ax.get_xgridlines() + ax.get_ygridlines()
+        # for line in gridlines:
+        #     line.set_linestyle(':')
+
+        self._show_and_or_save_plots(output_path, filename, perform_tight_layout=False)
+
+    def plot_profit_ecdf_pre_box(self, filter_specifications):
+
+        output_filename = "ECDF_profit"
+
+        output_path, filename = self._construct_output_path_and_filename(output_filename,
+                                                                         filter_specifications)
+
+        logger.debug("output_path is {};\t filename is {}".format(output_path, filename))
+
+        if not self.overwrite_existing_files and os.path.exists(filename):
+            logger.info("Skipping generation of {} as this file already exists".format(filename))
+            return
+
+        if filter_specifications:
+            for filter_specification in filter_specifications:
+                if filter_specification["parameter"] == "number_of_requests":
+                    logger.info("Skipping generation of {} as this conflicts with the filter specification {}".format(
+                        output_filename, filter_specification))
+                    return
+
+        scenario_ids = self._obtain_scenarios_based_on_filters(filter_specifications)
+
+        if self.forbidden_scenario_ids:
+            scenario_ids = scenario_ids - self.forbidden_scenario_ids
+
+        result = self.compute_relative_profits_arrays(scenario_ids)
+        print result
+
+        fig, axs = plt.subplots(nrows=2, figsize=FIGSIZE, sharex="col")
         # ax.set_xscale("log", basex=10)
 
         #colors_erf = ['k', 'g', 'b', 'r', 'y']
@@ -1503,12 +1711,12 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
                 ax.set_yticks(major_y, minor=False)
 
                 for tick in ax.xaxis.get_major_ticks():
-                    tick.label.set_fontsize(14)
+                    tick.label.set_fontsize(15)
                 for tick in ax.yaxis.get_major_ticks():
                     tick.label.set_fontsize(14)
 
                 if j == 1:
-                    ax.set_xlabel("profit(RR) / profit(ViNE)", fontsize=14)
+                    ax.set_xlabel("profit($\mathsf{RR}_{\mathsf{best}}$) / profit($\mathsf{ViNE}_{\mathsf{best}}$)", fontsize=15)
 
         fig.subplots_adjust(top=0.825)
         fig.subplots_adjust(bottom=0.15)
@@ -1553,7 +1761,6 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
 
         self._show_and_or_save_plots(output_path, filename, perform_tight_layout=False)
 
-
     def plot_relative_performance_Vine_and_RandRound(self, filter_specifications):
 
         output_filename = "boxplot_relative_performance"
@@ -1579,17 +1786,19 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
         if self.forbidden_scenario_ids:
             scenario_ids = scenario_ids - self.forbidden_scenario_ids
 
-
         vine_settings_list = get_list_of_vine_settings()
         rr_settings_list = get_list_of_rr_settings()
 
-        plot_data_raw = {vine_settings: {scenario_id: None for scenario_id in scenario_ids} for vine_settings in vine_settings_list}
-        plot_data_raw.update({rr_settings: {scenario_id: None for scenario_id in scenario_ids} for rr_settings in rr_settings_list})
-
+        plot_data_raw = {vine_settings: {scenario_id: None for scenario_id in scenario_ids} for vine_settings in
+                         vine_settings_list}
+        plot_data_raw.update(
+            {rr_settings: {scenario_id: None for scenario_id in scenario_ids} for rr_settings in rr_settings_list})
 
         for scenario_id in scenario_ids:
-            best_vine = max([self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max for vine_settings in vine_settings_list])
-            best_rr = max([self._lookup_randround_solution(scenario_id).profits[rr_settings].max for rr_settings in rr_settings_list])
+            best_vine = max([self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max for vine_settings in
+                             vine_settings_list])
+            best_rr = max([self._lookup_randround_solution(scenario_id).profits[rr_settings].max for rr_settings in
+                           rr_settings_list])
             best_bound = self._lookup_randround_solution(scenario_id).lp_profit
             best_vine = best_bound
             best_rr = best_bound
@@ -1608,7 +1817,7 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
         y_min = -5
         y_max = 105
 
-        fig, axs = plt.subplots(ncols=2, nrows=1, figsize=(5, 4), gridspec_kw={'width_ratios': [13,20]}, sharey="row")
+        fig, axs = plt.subplots(ncols=2, nrows=1, figsize=FIGSIZE, gridspec_kw={'width_ratios': [13, 20]}, sharey="row")
         ax = axs[0]
 
         vine_det = []
@@ -1633,7 +1842,6 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
         major_labels = []
         major_label_locations = []
         current_pos = 0.5
-
 
         cmap = plt.get_cmap("inferno")
 
@@ -1684,7 +1892,6 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
                 major_label_locations.append((positions[2] + positions[-1]) / 2.0)
                 major_labels.append("Rand.")
 
-
         # bplots = []
         #
         # for _bin, pos in zip(values, positions):
@@ -1696,11 +1903,10 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
 
         bplots = ax.boxplot(x=values,
                             positions=positions,
-                            widths=[0.5]*len(positions),
+                            widths=[0.5] * len(positions),
                             patch_artist=True,
                             notch=True,
                             bootstrap=10000)
-
 
         for i in range(len(bplots)):
             color = colors[i]
@@ -1721,38 +1927,43 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
                         markeredgecolor=matplotlib.colors.to_rgba(color, alpha=0.15),
                     )
 
-
         ax.set_ylim(y_min, y_max)
 
         for k in range(len(minor_label_locations)):
-            ax.text(x=minor_label_locations[k], y=y_min - 11, s=minor_labels[k], horizontalalignment='center', fontdict={'fontsize': 14})
+            ax.text(x=minor_label_locations[k], y=y_min - 11, s=minor_labels[k], horizontalalignment='center',
+                    fontdict={'fontsize': 14})
 
         for k in range(len(major_label_locations)):
-            ax.text(x=major_label_locations[k], y=y_min - 21, s=major_labels[k], horizontalalignment='center', fontdict={'fontsize': 14})
+            ax.text(x=major_label_locations[k], y=y_min - 21, s=major_labels[k], horizontalalignment='center',
+                    fontdict={'fontsize': 14})
 
         ax.set_xticks([])
 
-        ax.set_yticks([x * 10 for x in range(1, 10,2)], minor=True)
+        ax.set_yticks([x * 10 for x in range(1, 10, 2)], minor=True)
 
         ax.grid(True, which="major", linestyle="-")
         ax.grid(True, which="minor", linestyle=":")
 
-        ax.set_title("ViNE", fontsize=15.5)
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(15)
 
-        ax.set_ylabel("Relative Performance [%]", fontsize=14)
+        ax.set_title("ViNE", fontsize=16)
 
+        ax.set_ylabel("Profit / $\mathsf{LP}_{\mathsf{UB}}$ [%]", fontsize=16)
 
         # RAND ROUND!
 
         ax = axs[1]
 
-
         rr_no_recomp = [(treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.RANDOM),
                         (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
                         (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
-        rr_recomp = [(treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION, treewidth_model.RoundingOrder.RANDOM),
-                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION, treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
-                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION, treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
+        rr_recomp = [(treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
+                      treewidth_model.RoundingOrder.RANDOM),
+                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
+                      treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
+                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
+                      treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
 
         ordered_rr_settings = [rr_no_recomp, rr_recomp]
 
@@ -1768,7 +1979,7 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
 
         colors = []
 
-        fig.subplots_adjust(bottom=0.18, top=0.84, right=0.83, wspace=0.12)
+        fig.subplots_adjust(bottom=0.18, top=0.84, right=0.83, wspace=0.12, left=0.14)
 
         # rand round
         for i in range(2):
@@ -1804,7 +2015,6 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
                 major_label_locations.append((positions[6] + positions[-1]) / 2.0)
                 major_labels.append("Recomp.")
 
-
         bplots = ax.boxplot(x=values,
                             positions=positions,
                             widths=[0.5] * len(positions),
@@ -1838,34 +2048,350 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
         ax.set_ylim(y_min, y_max)
 
         for k in range(len(minor_label_locations)):
-            ax.text(x=minor_label_locations[k], y=y_min - 11, s=minor_labels[k], horizontalalignment='center', fontdict={'fontsize': 14})
+            ax.text(x=minor_label_locations[k], y=y_min - 11, s=minor_labels[k], horizontalalignment='center',
+                    fontdict={'fontsize': 14})
 
         for k in range(len(major_label_locations)):
-            ax.text(x=major_label_locations[k], y=y_min - 21, s=major_labels[k], horizontalalignment='center', fontdict={'fontsize': 14})
+            ax.text(x=major_label_locations[k], y=y_min - 21, s=major_labels[k], horizontalalignment='center',
+                    fontdict={'fontsize': 14})
 
         ax.set_xticks([])
 
-        ax.set_title("RR Heuristics", fontsize=15.5)
+        ax.set_title("RR Heuristics", fontsize=16)
 
-        ax.set_yticks([x * 10 for x in range(1, 10,2)], minor=True)
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(15)
+
+        ax.set_yticks([x * 10 for x in range(1, 10, 2)], minor=True)
 
         ax.grid(True, which="major", linestyle="-")
         ax.grid(True, which="minor", linestyle=":")
 
-
-
-        #LEGEND!
+        # LEGEND!
 
         best_patch = mpatches.Patch(color=matplotlib.colors.to_rgba(color_best, alpha=0.6), label='best')
         mean_patch = mpatches.Patch(color=matplotlib.colors.to_rgba(color_mean, alpha=0.6), label='mean')
 
-        plt.legend(handles=[best_patch, mean_patch], loc=4, fontsize=14,handlelength=0.5,
-                                  handletextpad=0.35, bbox_to_anchor=(1, 0.5), bbox_transform=plt.gcf().transFigure,
-                                  borderaxespad=0.175, borderpad=0.2)
+        plt.legend(handles=[best_patch, mean_patch], loc=4, fontsize=14, handlelength=0.5,
+                   handletextpad=0.35, bbox_to_anchor=(1, 0.5), bbox_transform=plt.gcf().transFigure,
+                   borderaxespad=0.175, borderpad=0.2)
 
         plt.suptitle("Performance of Algorithm Variants", fontsize=17)
 
         self._show_and_or_save_plots(output_path, filename, perform_tight_layout=False)
+
+    # def plot_relative_performance_Vine_and_RandRound(self, filter_specifications):
+    #
+    #     output_filename = "boxplot_relative_performance"
+    #
+    #     output_path, filename = self._construct_output_path_and_filename(output_filename,
+    #                                                                      filter_specifications)
+    #
+    #     logger.debug("output_path is {};\t filename is {}".format(output_path, filename))
+    #
+    #     if not self.overwrite_existing_files and os.path.exists(filename):
+    #         logger.info("Skipping generation of {} as this file already exists".format(filename))
+    #         return
+    #
+    #     if filter_specifications:
+    #         for filter_specification in filter_specifications:
+    #             if filter_specification["parameter"] == "number_of_requests":
+    #                 logger.info("Skipping generation of {} as this conflicts with the filter specification {}".format(
+    #                     output_filename, filter_specification))
+    #                 return
+    #
+    #     scenario_ids = self._obtain_scenarios_based_on_filters(filter_specifications)
+    #
+    #     if self.forbidden_scenario_ids:
+    #         scenario_ids = scenario_ids - self.forbidden_scenario_ids
+    #
+    #     vine_settings_list = get_list_of_vine_settings()
+    #     rr_settings_list = get_list_of_rr_settings()
+    #
+    #     plot_data_raw = {vine_settings: {scenario_id: None for scenario_id in scenario_ids} for vine_settings in
+    #                      vine_settings_list}
+    #     plot_data_raw.update(
+    #         {rr_settings: {scenario_id: None for scenario_id in scenario_ids} for rr_settings in rr_settings_list})
+    #
+    #     for scenario_id in scenario_ids:
+    #         best_vine = max([self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max for vine_settings in
+    #                          vine_settings_list])
+    #         best_rr = max([self._lookup_randround_solution(scenario_id).profits[rr_settings].max for rr_settings in
+    #                        rr_settings_list])
+    #         best_bound = self._lookup_randround_solution(scenario_id).lp_profit
+    #         best_vine = best_bound
+    #         best_rr = best_bound
+    #
+    #         for vine_settings in vine_settings_list:
+    #             plot_data_raw[vine_settings][scenario_id] = (
+    #                 100.0 * self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max / best_vine,
+    #                 100.0 * self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.mean / best_vine
+    #             )
+    #         for rr_settings in rr_settings_list:
+    #             plot_data_raw[rr_settings][scenario_id] = (
+    #                 100.0 * self._lookup_randround_solution(scenario_id).profits[rr_settings].max / best_rr,
+    #                 100.0 * self._lookup_randround_solution(scenario_id).profits[rr_settings].mean / best_rr
+    #             )
+    #
+    #     y_min = -5
+    #     y_max = 105
+    #
+    #     fig, axs = plt.subplots(ncols=2, nrows=1, figsize=FIGSIZE, gridspec_kw={'width_ratios': [13, 20]}, sharey="row")
+    #     ax = axs[0]
+    #
+    #     vine_det = []
+    #     vine_rand = []
+    #
+    #     for vine_settings in vine_settings_list:
+    #         if vine_settings.edge_embedding_model == vine.ViNEEdgeEmbeddingModel.SPLITTABLE:
+    #             continue
+    #         if vine_settings.rounding_procedure == vine.ViNERoundingProcedure.DETERMINISTIC:
+    #             vine_det.append(vine_settings)
+    #         else:
+    #             vine_rand.append(vine_settings)
+    #
+    #     ordered_vine_settings = [vine_det, vine_rand]
+    #
+    #     positions = []
+    #     values = []
+    #
+    #     minor_labels = []
+    #     minor_label_locations = []
+    #
+    #     major_labels = []
+    #     major_label_locations = []
+    #     current_pos = 0.5
+    #
+    #     cmap = plt.get_cmap("inferno")
+    #
+    #     color_best = cmap(0.6)
+    #     color_mean = cmap(0)
+    #     color_def = cmap(0.6)
+    #
+    #     colors = []
+    #
+    #     # vine!
+    #     for i in range(2):
+    #         # i == 0: det
+    #         # i == 1: rand
+    #         for vine_settings in ordered_vine_settings[i]:
+    #             if i == 0:
+    #                 current_values = [plot_data_raw[vine_settings][scenario_id][0] for scenario_id in scenario_ids]
+    #                 values.append(current_values)
+    #                 positions.append(current_pos)
+    #                 if vine_settings.lp_objective == vine.ViNELPObjective.ViNE_LB_DEF:
+    #                     minor_labels.append("L")
+    #                 else:
+    #                     minor_labels.append("C")
+    #                 minor_label_locations.append(current_pos)
+    #                 current_pos += 1.75
+    #                 colors.append(color_def)
+    #             else:
+    #                 for j in range(2):
+    #                     current_values = [plot_data_raw[vine_settings][scenario_id][j] for scenario_id in scenario_ids]
+    #                     values.append(current_values)
+    #                     positions.append(current_pos)
+    #                     current_pos += 0.75
+    #                     if j == 0:
+    #                         colors.append(color_best)
+    #                     else:
+    #                         colors.append(color_mean)
+    #
+    #                 if vine_settings.lp_objective == vine.ViNELPObjective.ViNE_LB_DEF:
+    #                     minor_labels.append("L")
+    #                 else:
+    #                     minor_labels.append("C")
+    #                 minor_label_locations.append((positions[-1] + positions[-2]) / 2.0)
+    #                 current_pos += 0.5
+    #         if i == 0:
+    #             major_label_locations.append(np.mean(positions))
+    #             major_labels.append("Det.")
+    #             current_pos += 0.75
+    #         else:
+    #             major_label_locations.append((positions[2] + positions[-1]) / 2.0)
+    #             major_labels.append("Rand.")
+    #
+    #     # bplots = []
+    #     #
+    #     # for _bin, pos in zip(values, positions):
+    #     #     print "plot...", pos
+    #     #     bplots.append(ax.boxplot(x=_bin,
+    #     #                              positions=[pos],
+    #     #                              widths=[0.5],
+    #     #                              patch_artist=True))
+    #
+    #     bplots = ax.boxplot(x=values,
+    #                         positions=positions,
+    #                         widths=[0.5] * len(positions),
+    #                         patch_artist=True,
+    #                         notch=True,
+    #                         bootstrap=10000)
+    #
+    #     for i in range(len(bplots)):
+    #         color = colors[i]
+    #         bplots['boxes'][i].set_edgecolor(color)
+    #         bplots['boxes'][i].set_facecolor(
+    #             matplotlib.colors.to_rgba(color, alpha=0.3)
+    #         )
+    #
+    #         for keyword in ["medians", "fliers", "whiskers", "caps"]:
+    #             if keyword == "whiskers" or keyword == "caps":
+    #                 bplots[keyword][i * 2].set_color(color)
+    #                 bplots[keyword][i * 2 + 1].set_color(color)
+    #             else:
+    #                 bplots[keyword][i].set_color(color)
+    #             if keyword == "fliers":
+    #                 bplots[keyword][i].set(
+    #                     marker='o',
+    #                     markeredgecolor=matplotlib.colors.to_rgba(color, alpha=0.15),
+    #                 )
+    #
+    #     ax.set_ylim(y_min, y_max)
+    #
+    #     for k in range(len(minor_label_locations)):
+    #         ax.text(x=minor_label_locations[k], y=y_min - 11, s=minor_labels[k], horizontalalignment='center',
+    #                 fontdict={'fontsize': 14})
+    #
+    #     for k in range(len(major_label_locations)):
+    #         ax.text(x=major_label_locations[k], y=y_min - 21, s=major_labels[k], horizontalalignment='center',
+    #                 fontdict={'fontsize': 14})
+    #
+    #     ax.set_xticks([])
+    #
+    #     ax.set_yticks([x * 10 for x in range(1, 10, 2)], minor=True)
+    #
+    #     ax.grid(True, which="major", linestyle="-")
+    #     ax.grid(True, which="minor", linestyle=":")
+    #
+    #     ax.set_title("ViNE", fontsize=15.5)
+    #
+    #     ax.set_ylabel("Relative Performance [%]", fontsize=14)
+    #
+    #     # RAND ROUND!
+    #
+    #     ax = axs[1]
+    #
+    #     rr_no_recomp = [(treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.RANDOM),
+    #                     (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
+    #                     (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
+    #     rr_recomp = [(treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
+    #                   treewidth_model.RoundingOrder.RANDOM),
+    #                  (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
+    #                   treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
+    #                  (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
+    #                   treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
+    #
+    #     ordered_rr_settings = [rr_no_recomp, rr_recomp]
+    #
+    #     positions = []
+    #     values = []
+    #
+    #     minor_labels = []
+    #     minor_label_locations = []
+    #
+    #     major_labels = []
+    #     major_label_locations = []
+    #     current_pos = 0.5
+    #
+    #     colors = []
+    #
+    #     fig.subplots_adjust(bottom=0.18, top=0.84, right=0.83, wspace=0.12)
+    #
+    #     # rand round
+    #     for i in range(2):
+    #         # i == 0: no_recomp
+    #         # i == 1: recomp!
+    #         for rr_settings in ordered_rr_settings[i]:
+    #             for j in range(2):
+    #                 current_values = [plot_data_raw[rr_settings][scenario_id][j] for scenario_id in scenario_ids]
+    #                 values.append(current_values)
+    #                 positions.append(current_pos)
+    #                 current_pos += 0.75
+    #                 if j == 0:
+    #                     colors.append(color_best)
+    #                 else:
+    #                     colors.append(color_mean)
+    #
+    #             if rr_settings[1] == treewidth_model.RoundingOrder.RANDOM:
+    #                 minor_labels.append("R")
+    #             elif rr_settings[1] == treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT:
+    #                 minor_labels.append("A")
+    #             elif rr_settings[1] == treewidth_model.RoundingOrder.STATIC_REQ_PROFIT:
+    #                 minor_labels.append("S")
+    #             else:
+    #                 raise ValueError()
+    #             minor_label_locations.append((positions[-1] + positions[-2]) / 2.0)
+    #             current_pos += 0.5
+    #
+    #         if i == 0:
+    #             major_label_locations.append(np.mean(positions))
+    #             major_labels.append("No Recomp.")
+    #             current_pos += 1
+    #         else:
+    #             major_label_locations.append((positions[6] + positions[-1]) / 2.0)
+    #             major_labels.append("Recomp.")
+    #
+    #     bplots = ax.boxplot(x=values,
+    #                         positions=positions,
+    #                         widths=[0.5] * len(positions),
+    #                         patch_artist=True,
+    #                         notch=True,
+    #                         bootstrap=1000)
+    #
+    #     print bplots
+    #     print colors
+    #
+    #     for i in range(len(positions)):
+    #         print "Setting color of boxplot ", i
+    #         color = colors[i]
+    #         bplots['boxes'][i].set_edgecolor(color)
+    #         bplots['boxes'][i].set_facecolor(
+    #             matplotlib.colors.to_rgba(color, alpha=0.3)
+    #         )
+    #
+    #         for keyword in ["medians", "fliers", "whiskers", "caps"]:
+    #             if keyword == "whiskers" or keyword == "caps":
+    #                 bplots[keyword][i * 2].set_color(color)
+    #                 bplots[keyword][i * 2 + 1].set_color(color)
+    #             else:
+    #                 bplots[keyword][i].set_color(color)
+    #             if keyword == "fliers":
+    #                 bplots[keyword][i].set(
+    #                     marker='o',
+    #                     markeredgecolor=matplotlib.colors.to_rgba(color, alpha=0.15),
+    #                 )
+    #
+    #     ax.set_ylim(y_min, y_max)
+    #
+    #     for k in range(len(minor_label_locations)):
+    #         ax.text(x=minor_label_locations[k], y=y_min - 11, s=minor_labels[k], horizontalalignment='center',
+    #                 fontdict={'fontsize': 14})
+    #
+    #     for k in range(len(major_label_locations)):
+    #         ax.text(x=major_label_locations[k], y=y_min - 21, s=major_labels[k], horizontalalignment='center',
+    #                 fontdict={'fontsize': 14})
+    #
+    #     ax.set_xticks([])
+    #
+    #     ax.set_title("RR Heuristics", fontsize=15.5)
+    #
+    #     ax.set_yticks([x * 10 for x in range(1, 10, 2)], minor=True)
+    #
+    #     ax.grid(True, which="major", linestyle="-")
+    #     ax.grid(True, which="minor", linestyle=":")
+    #
+    #     # LEGEND!
+    #
+    #     best_patch = mpatches.Patch(color=matplotlib.colors.to_rgba(color_best, alpha=0.6), label='best')
+    #     mean_patch = mpatches.Patch(color=matplotlib.colors.to_rgba(color_mean, alpha=0.6), label='mean')
+    #
+    #     plt.legend(handles=[best_patch, mean_patch], loc=4, fontsize=14, handlelength=0.5,
+    #                handletextpad=0.35, bbox_to_anchor=(1, 0.5), bbox_transform=plt.gcf().transFigure,
+    #                borderaxespad=0.175, borderpad=0.2)
+    #
+    #     plt.suptitle("Performance of Algorithm Variants", fontsize=17)
+    #
+    #     self._show_and_or_save_plots(output_path, filename, perform_tight_layout=False)
 
     def plot_profit_ecdf_old(self, filter_specifications):
 
@@ -1895,7 +2421,7 @@ class ComparisonBaselineVsRRT_Scatter_and_ECDF(AbstractPlotter):
         result = self.compute_relative_profits_arrays(scenario_ids)
         print result
 
-        fix, ax = plt.subplots(figsize=(5, 4))
+        fix, ax = plt.subplots(figsize=FIGSIZE)
         # ax.set_xscale("log", basex=10)
 
         colors_erf = ['k', 'g', 'b', 'r', 'y']
@@ -2055,7 +2581,7 @@ def evaluate_vine_and_randround(dc_vine,
                                             forbidden_scenario_ids=forbidden_scenario_ids,
                                             paper_mode=papermode)
 
-    #plotters.append(vine_plotter)
+    plotters.append(vine_plotter)
 
     randround_plotter = SingleHeatmapPlotter(output_path=output_path,
                                              output_filetype=output_filetype,
@@ -2069,7 +2595,7 @@ def evaluate_vine_and_randround(dc_vine,
                                              forbidden_scenario_ids=forbidden_scenario_ids,
                                              paper_mode=papermode)
 
-    #plotters.append(randround_plotter)
+    plotters.append(randround_plotter)
 
     comparison_plotter = ComparisonHeatmapPlotter(output_path=output_path,
                                                   output_filetype=output_filetype,
@@ -2086,21 +2612,21 @@ def evaluate_vine_and_randround(dc_vine,
                                                   forbidden_scenario_ids=forbidden_scenario_ids,
                                                   paper_mode=papermode)
 
-    #plotters.append(comparison_plotter)
+    plotters.append(comparison_plotter)
 
-    ecdf_plotter = ComparisonBaselineVsRRT_Scatter_and_ECDF(output_path=output_path,
-                                                            output_filetype=output_filetype,
-                                                            vine_solution_storage=dc_vine,
-                                                            vine_algorithm_id=vine_algorithm_id,
-                                                            vine_execution_id=vine_execution_id,
-                                                            randround_solution_storage=dc_randround,
-                                                            randround_algorithm_id=randround_algorithm_id,
-                                                            randround_execution_id=randround_execution_id,
-                                                            show_plot=show_plot,
-                                                            save_plot=save_plot,
-                                                            overwrite_existing_files=overwrite_existing_files,
-                                                            forbidden_scenario_ids=forbidden_scenario_ids,
-                                                            paper_mode=papermode)
+    ecdf_plotter = ComparisonPlotter_ECDF_BoxPlot(output_path=output_path,
+                                                  output_filetype=output_filetype,
+                                                  vine_solution_storage=dc_vine,
+                                                  vine_algorithm_id=vine_algorithm_id,
+                                                  vine_execution_id=vine_execution_id,
+                                                  randround_solution_storage=dc_randround,
+                                                  randround_algorithm_id=randround_algorithm_id,
+                                                  randround_execution_id=randround_execution_id,
+                                                  show_plot=show_plot,
+                                                  save_plot=save_plot,
+                                                  overwrite_existing_files=overwrite_existing_files,
+                                                  forbidden_scenario_ids=forbidden_scenario_ids,
+                                                  paper_mode=papermode)
 
     plotters.append(ecdf_plotter)
 
