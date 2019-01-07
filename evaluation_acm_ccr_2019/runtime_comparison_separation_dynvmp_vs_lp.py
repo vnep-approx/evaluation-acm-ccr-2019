@@ -208,9 +208,9 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
     def get_color(value):
         return plt.cm.inferno(value)
 
-    colors = [get_color(0.7),get_color(0.35),get_color(0.0)]
+    colors = [get_color(0.5),get_color(0.0)] #get_color(0.7),
     #colors = [get_color(0.75), get_color(0.55), get_color(0.35), get_color(0.0)]
-    linestyles = ['-', '--']
+    linestyles = ['-', ':']
 
     with_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[0], label=r"incl.  $\mathcal{T}_r$ comp.", linewidth=2)
     wo_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[1], label=r"excl. $\mathcal{T}_r$ comp.", linewidth=2.75)
@@ -220,7 +220,7 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
 
     max_observed_value = 0
 
-    request_sets = [[40], [60], [80,100]]
+    request_sets = [[40,60], [80,100]]
 
     for request_number_index, number_of_requests_ in enumerate(request_sets):
         scenario_ids_to_consider = set()
@@ -290,20 +290,20 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
                                         label=("{}".format(number_of_requests_[0])).ljust(
                                             3), linewidth=2.5))
 
-    first_legend = plt.legend(handles=[with_td, wo_td], loc=4, fontsize=11, title="", handletextpad=.35,
-                              borderaxespad=0.1, borderpad=0.2, handlelength=2.5)
+    first_legend = plt.legend(handles=[with_td, wo_td], loc=4, fontsize=14, title="", handletextpad=.35,
+                              borderaxespad=0.1, borderpad=0.2, handlelength=1)
     first_legend.get_frame().set_alpha(1.0)
     first_legend.get_frame().set_facecolor("#FFFFFF")
-    plt.setp(first_legend.get_title(), fontsize=12)
+    plt.setp(first_legend.get_title(), fontsize=15)
     plt.gca().add_artist(first_legend)
     # ax.tick_params(labelright=True)
 
     # print second_legend_handlers
 
-    second_legend = plt.legend(handles=second_legend_handlers, loc=2, fontsize=11, title="#requests", handletextpad=.35,
+    second_legend = plt.legend(handles=second_legend_handlers, loc=2, fontsize=14, title="#requests", handletextpad=.35,
                                borderaxespad=0.175, borderpad=0.2, handlelength=2)
     #plt.gca().add_artist(second_legend)
-    plt.setp(second_legend.get_title(), fontsize=12)
+    plt.setp(second_legend.get_title(), fontsize=15)
 
     second_legend.get_frame().set_alpha(1.0)
     second_legend.get_frame().set_facecolor("#FFFFFF")
@@ -313,17 +313,17 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
     # plt.gca().add_artist(first_legend)
     # plt.setp("TITLE", fontsize='15')
 
-    ax.set_title("LP Runtime Comparison", fontsize=17)
-    ax.set_xlabel(r"Speedup: Time($\mathsf{LP}_{\mathsf{Cactus}}$) / Time($\mathsf{LP}_{\mathsf{DynVMP}}$)",
+    ax.set_title("Cactus LP Runtime Comparison", fontsize=17)
+    ax.set_xlabel(r"Speedup: time($\mathsf{LP}_{\mathsf{Cactus}}$) / time($\mathsf{LP}_{\mathsf{DynVMP}}$)",
                   fontsize=16)
     ax.set_ylabel("ECDF", fontsize=16)
 
     ax.set_xlim(0.4, max_observed_value * 1.15)
 
     for tick in ax.xaxis.get_major_ticks():
-        tick.label.set_fontsize(13)
+        tick.label.set_fontsize(14)
     for tick in ax.yaxis.get_major_ticks():
-        tick.label.set_fontsize(13)
+        tick.label.set_fontsize(14)
 
     ax.set_xticks([0.5, 1, 5, 20, 60, ], minor=False)
     ax.set_xticks([2, 3, 4, 10, 30, 40], minor=True)
@@ -363,7 +363,7 @@ def plot_comparison_separation_dynvmp_vs_lp_orig(sep_lp_dynvmp_data_set,
         return plt.cm.inferno(value)
 
     colors = [get_color(0.75), get_color(0.55),get_color(0.35),get_color(0.0)]
-    linestyles = ['-', '--']
+    linestyles = ['-', ':']
 
     with_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[0], label=r"incl.  $\mathcal{T}_r$ comp.", linewidth=2)
     wo_td = matplotlib.lines.Line2D([], [], color='#333333', linestyle=linestyles[1], label=r"excl. $\mathcal{T}_r$ comp.", linewidth=2.75)
@@ -455,7 +455,7 @@ def plot_comparison_separation_dynvmp_vs_lp_orig(sep_lp_dynvmp_data_set,
     # plt.gca().add_artist(first_legend)
     # plt.setp("TITLE", fontsize='15')
 
-    ax.set_title("LP Runtime Comparison", fontsize=17)
+    ax.set_title("Cactus LP Runtime Comparison", fontsize=17)
     ax.set_xlabel(r"Speedup: Time($\mathsf{LP}_{\mathsf{Cactus}}$) / Time($\mathsf{LP}_{\mathsf{DynVMP}}$)",
                   fontsize=16)
     ax.set_ylabel("ECDF", fontsize=16)
