@@ -87,7 +87,7 @@ information:
 
 """
 heatmap_specification_avg_rounded_treewidth = dict(
-    name="Avg. Treewidth (rounded)",
+    name="Average Treewidth (rounded)",
     filename="treewidth_avg_rounded",
     vmin=1.0,
     vmax=44.0,
@@ -100,7 +100,7 @@ heatmap_specification_avg_rounded_treewidth = dict(
 )
 
 heatmap_specification_avg_treewidth = dict(
-    name="Avg. Treewidth",
+    name="Average Treewidth",
     filename="treewidth_avg",
     vmin=1.0,
     vmax=44.0,
@@ -217,7 +217,7 @@ boxplot_axis_specification_treewidth = dict(
     x_axis_ticks=[0, 10, 20, 30, 38],
     filename="treewidth",
     x_axis_function=lambda tw_result: tw_result.treewidth,
-    plot_title="Decomposition Runtime"
+    plot_title="Tree Decomposition Computation"
 )
 
 boxplot_axis_specification_num_nodes = dict(
@@ -598,7 +598,7 @@ class DecompositionRuntimePlotter(AbstractPlotter):
                                             decomposition_runtime_axes_specification,
                                             decomposition_runtime_metric_specification)
 
-        fig, ax = plt.subplots(figsize=FIGSIZE)
+        fig, ax = plt.subplots(figsize=(FIGSIZE[0]-0.75,FIGSIZE[1]))
         if self.paper_mode:
             print decomposition_runtime_axes_specification
             ax.set_title(decomposition_runtime_axes_specification['plot_title'], fontsize=PLOT_TITLE_FONT_SIZE)
@@ -657,13 +657,13 @@ class DecompositionRuntimePlotter(AbstractPlotter):
         #if median_legend_handle:
         #    handles.append(median_legend_handle)
 
-        leg = ax.legend(handles=handles, fontsize=LEGEND_LABEL_FONT_SIZE, loc=2, title="percentiles", handletextpad=.35,
+        leg = ax.legend(handles=handles, fontsize=LEGEND_LABEL_FONT_SIZE-2, loc=2, title="percentiles", handletextpad=.35,
                         borderaxespad=0.175, borderpad=0.2, handlelength=1.75)
 
-        plt.setp(leg.get_title(), fontsize=LEGEND_TITLE_FONT_SIZE)
+        plt.setp(leg.get_title(), fontsize=LEGEND_TITLE_FONT_SIZE-1)
         plt.gca().add_artist(leg)
 
-        sec_leg = ax.legend(handles=[median_legend_handle], fontsize=LEGEND_LABEL_FONT_SIZE, loc=1, title="", handletextpad=.35,
+        sec_leg = ax.legend(handles=[median_legend_handle], fontsize=LEGEND_LABEL_FONT_SIZE-1, loc=1, title="", handletextpad=.35,
                         borderaxespad=0.175, borderpad=0.2, handlelength=1.75, frameon=True)
 
 
@@ -855,7 +855,7 @@ class SingleHeatmapPlotter(AbstractPlotter):
         # all heatmap values will be stored in X
         X = np.zeros((len(yaxis_parameters), len(xaxis_parameters)))
 
-        fig, ax = plt.subplots(figsize=FIGSIZE)
+        fig, ax = plt.subplots(figsize=(FIGSIZE[0]-0.75,FIGSIZE[1]))
 
         min_number_of_observed_values = 10000000000000
         max_number_of_observed_values = 0
