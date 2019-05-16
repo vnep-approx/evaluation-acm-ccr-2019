@@ -39,8 +39,8 @@ move_logs_and_output log_vine_execution
 
 
 #extract data to be plotted
-move_logs_and_output log_reduction_rr_seplp_dynvmp
 python -m evaluation_acm_ccr_2019.cli reduce_to_plotdata_rr_seplp_optdynvmp sample_scenarios_results_seplp_dynvmp.pickle
+move_logs_and_output log_reduction_rr_seplp_dynvmp
 
 python -m evaluation_acm_ccr_2019.cli reduce_to_plotdata_vine sample_scenarios_ViNE_results.pickle
 move_logs_and_output log_reduction_vine
