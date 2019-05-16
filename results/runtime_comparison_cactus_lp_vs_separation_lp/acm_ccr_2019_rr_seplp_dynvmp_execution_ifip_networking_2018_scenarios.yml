@@ -1,4 +1,4 @@
-SCENARIO_INPUT_PICKLE: "ifip_networking_evaluation_scenarios.pickle"
+SCENARIO_INPUT_PICKLE: "ifip_networking_2018_evaluation_scenarios.pickle"
 RESULT_OUTPUT_PICKLE: "ifip_networking_2018_scenarios_seplp_dynvmp_results.pickle"
 
 # As we are only interested in the runtime of the LPs, we only execute the fastest randomized rounding procedure.
