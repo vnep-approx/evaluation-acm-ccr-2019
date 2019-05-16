@@ -39,6 +39,8 @@ except ImportError:
     import pickle
 
 import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.patheffects as PathEffects
 import matplotlib.patches as mpatches
 from matplotlib import gridspec
@@ -55,7 +57,6 @@ from evaluation_acm_ccr_2019 import plot_data
 REQUIRED_FOR_PICKLE = solutions  # this prevents pycharm from removing this import, which is required for unpickling solutions
 
 OUTPUT_PATH = None
-OUTPUT_FILETYPE = "pdf"
 FIGSIZE = (5,3.5)
 
 logger = util.get_logger(__name__, make_file=False, propagate=True)
@@ -715,7 +716,7 @@ class HSF_Comp_RelProfitToLPBound_RR(AbstractHeatmapSpecificationVineVsRandRound
 class HSF_Comp_RelProfitToLPBound_Vine(AbstractHeatmapSpecificationVineVsRandRoundFactory):
 
     prototype = dict(
-        name="Rel. Profit: ViNE",
+        name="Rel. Profit: WiNE",
         filename="rel_profit_lpbound_vine",
         vmin=0,
         vmax=+100,
@@ -731,7 +732,7 @@ class HSF_Comp_RelProfitToLPBound_Vine(AbstractHeatmapSpecificationVineVsRandRou
 class HSF_Comp_RelProfitToLPBound_RR_minus_Vine(AbstractHeatmapSpecificationVineVsRandRoundFactory):
 
     prototype = dict(
-        name="Rel. Improv.: ($\mathsf{RR}_{\mathsf{best}}$ - $\mathsf{ViNE}_{\mathsf{best}}$)/$\mathsf{LP}_{\mathsf{UB}}$ [%]",
+        name="Rel. Improv.: ($\mathsf{RR}_{\mathsf{best}}$ - $\mathsf{WiNE}_{\mathsf{best}}$)/$\mathsf{LP}_{\mathsf{UB}}$ [%]",
         filename="rel_profit_difference_lpbound",
         vmin=-25,
         vmax=+25,
@@ -1043,7 +1044,7 @@ class AbstractPlotter(object):
         filter_filename = "no_filter.{}".format(self.output_filetype)
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
-        base = os.path.normpath(OUTPUT_PATH)
+        base = os.path.normpath(self.output_path)
         date = strftime("%Y-%m-%d", gmtime())
         output_path = os.path.join(base, date, self.output_filetype, "general_plots", filter_spec_path)
         filename = os.path.join(output_path, title + "_" + filter_filename)
@@ -1137,7 +1138,7 @@ class SingleHeatmapPlotter(AbstractPlotter):
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
 
-        base = os.path.normpath(OUTPUT_PATH)
+        base = os.path.normpath(self.output_path)
         date = strftime("%Y-%m-%d", gmtime())
         axes_foldername = heatmap_axes_specification['foldername']
         sub_param_string = metric_specification['alg_variant']
@@ -1413,7 +1414,8 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
                  forbidden_scenario_ids=None,
                  paper_mode=True,
                  vine_settings_to_consider=None,
-                 rr_settings_to_consider=None
+                 rr_settings_to_consider=None,
+                 request_sets=None
                  ):
         super(ComparisonPlotter_ECDF_BoxPlot, self).__init__(output_path, output_filetype, vine_solution_storage,
                                                              vine_algorithm_id, vine_execution_id, show_plot, save_plot,
@@ -1442,6 +1444,11 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
 
         if self.rr_settings_to_consider is None:
             self.rr_settings_to_consider = get_list_of_rr_settings()
+
+        if request_sets is None:
+            self.request_sets = [[40,60], [80,100]]
+        else:
+            self.request_sets = request_sets
 
 
     def _lookup_vine_solution(self, scenario_id):
@@ -1524,7 +1531,7 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
         number_requests_legend_handlers = []
         erf_legend_handlers = []
 
-        for j, number_of_requests_list in enumerate([[40, 60], [80, 100]]):
+        for j, number_of_requests_list in enumerate(self.request_sets):
 
             for i, erf in enumerate(self._edge_rfs_list):
 
@@ -1582,7 +1589,7 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
                     tick.label.set_fontsize(14.5)
 
                 if j == 1:
-                    ax.set_xlabel("profit($\mathsf{RR}_{\mathsf{best}}$) / profit($\mathsf{ViNE}_{\mathsf{best}}$) [%]", fontsize=15)
+                    ax.set_xlabel("profit($\mathsf{RR}_{\mathsf{best}}$) / profit($\mathsf{WiNE}_{\mathsf{best}}$) [%]", fontsize=15)
 
         fig.text(0.01, 0.54, 'ECDF [%]', va='center', rotation='vertical', fontsize=15)
         fig.subplots_adjust(top=0.9)
@@ -1604,7 +1611,7 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
         #                    handletextpad=.35, borderaxespad=0.175, borderpad=0.2)
         # plt.setp(o_leg.get_title(), fontsize='15')
 
-        plt.suptitle("Profit Comparison: $\mathsf{RR}_{\mathsf{best}}$ / $\mathsf{ViNE}_{\mathsf{best}}$", fontsize=17)
+        plt.suptitle("Profit Comparison: $\mathsf{RR}_{\mathsf{best}}$ / $\mathsf{WiNE}_{\mathsf{best}}$", fontsize=17)
         #ax.set_xlabel("rel profit$)", fontsize=16)
 
 
@@ -1716,7 +1723,7 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
                     tick.label.set_fontsize(14)
 
                 if j == 1:
-                    ax.set_xlabel("profit($\mathsf{RR}_{\mathsf{best}}$) / profit($\mathsf{ViNE}_{\mathsf{best}}$)", fontsize=15)
+                    ax.set_xlabel("profit($\mathsf{RR}_{\mathsf{best}}$) / profit($\mathsf{WiNE}_{\mathsf{best}}$)", fontsize=15)
 
         fig.subplots_adjust(top=0.825)
         fig.subplots_adjust(bottom=0.15)
@@ -1947,7 +1954,7 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
         for tick in ax.xaxis.get_major_ticks():
             tick.label.set_fontsize(15)
 
-        ax.set_title("ViNE", fontsize=16)
+        ax.set_title("WiNE(ViNE)", fontsize=16)
 
         ax.set_ylabel("Profit / $\mathsf{LP}_{\mathsf{UB}}$ [%]", fontsize=16)
 
@@ -2489,9 +2496,9 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
 def evaluate_vine_and_randround(dc_vine,
                                 vine_algorithm_id,
                                 vine_execution_id,
-                                dc_randround,
-                                randround_algorithm_id,
-                                randround_execution_id,
+                                dc_randround_seplp_dynvmp,
+                                randround_seplp_algorithm_id,
+                                randround_seplp_execution_id,
                                 exclude_generation_parameters=None,
                                 parameter_filter_keys=None,
                                 show_plot=False,
@@ -2501,7 +2508,8 @@ def evaluate_vine_and_randround(dc_vine,
                                 papermode=True,
                                 maxdepthfilter=2,
                                 output_path="./",
-                                output_filetype="png"):
+                                output_filetype="png",
+                                request_sets=None):
     """ Main function for evaluation, creating plots and saving them in a specific directory hierarchy.
     A large variety of plots is created. For heatmaps, a generic plotter is used while for general
     comparison plots (ECDF and scatter) an own class is used. The plots that shall be generated cannot
@@ -2511,9 +2519,9 @@ def evaluate_vine_and_randround(dc_vine,
     :param dc_vine: unpickled datacontainer of vine experiments
     :param vine_algorithm_id: algorithm id of the vine algorithm
     :param vine_execution_id: execution config (numeric) of the vine algorithm execution
-    :param dc_randround: unpickled datacontainer of randomized rounding experiments
-    :param randround_algorithm_id: algorithm id of the randround algorithm
-    :param randround_execution_id: execution config (numeric) of the randround algorithm execution
+    :param dc_randround_seplp_dynvmp: unpickled datacontainer of randomized rounding experiments
+    :param randround_seplp_algorithm_id: algorithm id of the randround algorithm
+    :param randround_seplp_execution_id: execution config (numeric) of the randround algorithm execution
     :param exclude_generation_parameters:   specific generation parameters that shall be excluded from the evaluation.
                                             These won't show in the plots and will also not be shown on axis labels etc.
     :param parameter_filter_keys:   name of parameters according to which the results shall be filtered
@@ -2539,7 +2547,7 @@ def evaluate_vine_and_randround(dc_vine,
             parameter_dicts_vine = lookup_scenario_parameter_room_dicts_on_path(
                 dc_vine.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
             parameter_dicts_randround = lookup_scenario_parameter_room_dicts_on_path(
-                dc_randround.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
+                dc_randround_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
 
             for value_to_exclude in values_to_exclude:
 
@@ -2570,24 +2578,24 @@ def evaluate_vine_and_randround(dc_vine,
     # initialize plotters for each valid vine setting...
 
     vine_plotter = SingleHeatmapPlotter(output_path=output_path,
-                                            output_filetype=output_filetype,
-                                            scenario_solution_storage=dc_vine,
-                                            algorithm_id=vine_algorithm_id,
-                                            execution_id=vine_execution_id,
-                                            heatmap_plot_type=HeatmapPlotType.ViNE,
-                                            show_plot=show_plot,
-                                            save_plot=save_plot,
-                                            overwrite_existing_files=overwrite_existing_files,
-                                            forbidden_scenario_ids=forbidden_scenario_ids,
-                                            paper_mode=papermode)
+                                        output_filetype=output_filetype,
+                                        scenario_solution_storage=dc_vine,
+                                        algorithm_id=vine_algorithm_id,
+                                        execution_id=vine_execution_id,
+                                        heatmap_plot_type=HeatmapPlotType.ViNE,
+                                        show_plot=show_plot,
+                                        save_plot=save_plot,
+                                        overwrite_existing_files=overwrite_existing_files,
+                                        forbidden_scenario_ids=forbidden_scenario_ids,
+                                        paper_mode=papermode)
 
     plotters.append(vine_plotter)
 
     randround_plotter = SingleHeatmapPlotter(output_path=output_path,
                                              output_filetype=output_filetype,
-                                             scenario_solution_storage=dc_randround,
-                                             algorithm_id=randround_algorithm_id,
-                                             execution_id=randround_execution_id,
+                                             scenario_solution_storage=dc_randround_seplp_dynvmp,
+                                             algorithm_id=randround_seplp_algorithm_id,
+                                             execution_id=randround_seplp_execution_id,
                                              heatmap_plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
                                              show_plot=show_plot,
                                              save_plot=save_plot,
@@ -2602,9 +2610,9 @@ def evaluate_vine_and_randround(dc_vine,
                                                   vine_solution_storage=dc_vine,
                                                   vine_algorithm_id=vine_algorithm_id,
                                                   vine_execution_id=vine_execution_id,
-                                                  randround_scenario_solution_storage=dc_randround,
-                                                  randround_algorithm_id=randround_algorithm_id,
-                                                  randround_execution_id=randround_execution_id,
+                                                  randround_scenario_solution_storage=dc_randround_seplp_dynvmp,
+                                                  randround_algorithm_id=randround_seplp_algorithm_id,
+                                                  randround_execution_id=randround_seplp_execution_id,
                                                   heatmap_plot_type=HeatmapPlotType.ComparisonVineRandRound,
                                                   show_plot=show_plot,
                                                   save_plot=save_plot,
@@ -2619,14 +2627,15 @@ def evaluate_vine_and_randround(dc_vine,
                                                   vine_solution_storage=dc_vine,
                                                   vine_algorithm_id=vine_algorithm_id,
                                                   vine_execution_id=vine_execution_id,
-                                                  randround_solution_storage=dc_randround,
-                                                  randround_algorithm_id=randround_algorithm_id,
-                                                  randround_execution_id=randround_execution_id,
+                                                  randround_solution_storage=dc_randround_seplp_dynvmp,
+                                                  randround_algorithm_id=randround_seplp_algorithm_id,
+                                                  randround_execution_id=randround_seplp_execution_id,
                                                   show_plot=show_plot,
                                                   save_plot=save_plot,
                                                   overwrite_existing_files=overwrite_existing_files,
                                                   forbidden_scenario_ids=forbidden_scenario_ids,
-                                                  paper_mode=papermode)
+                                                  paper_mode=papermode,
+                                                  request_sets=request_sets)
 
     plotters.append(ecdf_plotter)
 

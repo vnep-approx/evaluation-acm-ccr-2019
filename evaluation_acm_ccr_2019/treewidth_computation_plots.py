@@ -1,6 +1,10 @@
 import os
 from time import gmtime, strftime, time
 
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
 import matplotlib.colors
 import matplotlib.patches as mpatches
 import matplotlib.patheffects as path_effects
@@ -19,10 +23,6 @@ except ImportError:
 
 REQUIRED_FOR_PICKLE = treewidth_model  # this prevents pycharm from removing this import, which is required for unpickling solutions
 
-OUTPUT_PATH = "./output"
-PARAMETERS_FILE = "data/parameters.yml"
-DATA_FILE = "data/5_50_0_results_aggregated.pickle"
-OUTPUT_FILETYPE = "pdf"
 FIGSIZE = (5, 3.5)
 
 PLOT_TITLE_FONT_SIZE = 17  # for axis titles
@@ -92,7 +92,33 @@ heatmap_specification_avg_rounded_treewidth = dict(
     vmin=1.0,
     vmax=44.0,
     colorbar_ticks=[1,2, 3, 4, 6, 10, 20, 40],
-    rounding_function= lambda x: max(round(x),1),
+    rounding_function= lambda x: round(x),
+    cmap="inferno",
+    plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Average,
+    lookup_function=lambda tw_result: tw_result.treewidth,
+    metric_filter=lambda obj: (obj >= -0.00001)
+)
+
+heatmap_specification_avg_ceil_treewidth = dict(
+    name="Average Treewidth (ceil)",
+    filename="treewidth_avg_ceil",
+    vmin=1.0,
+    vmax=44.0,
+    colorbar_ticks=[1,2, 3, 4, 6, 10, 20, 40],
+    rounding_function= lambda x: math.ceil(x),
+    cmap="inferno",
+    plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Average,
+    lookup_function=lambda tw_result: tw_result.treewidth,
+    metric_filter=lambda obj: (obj >= -0.00001)
+)
+
+heatmap_specification_avg_floor_treewidth = dict(
+    name="Average Treewidth (floor)",
+    filename="treewidth_avg_floor",
+    vmin=1.0,
+    vmax=44.0,
+    colorbar_ticks=[1,2, 3, 4, 6, 10, 20, 40],
+    rounding_function= lambda x: math.floor(x),
     cmap="inferno",
     plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Average,
     lookup_function=lambda tw_result: tw_result.treewidth,
@@ -149,6 +175,8 @@ heatmap_specification_max_runtime = dict(
 global_heatmap_specfications = [
     heatmap_specification_avg_treewidth,
     heatmap_specification_avg_rounded_treewidth,
+    heatmap_specification_avg_ceil_treewidth,
+    heatmap_specification_avg_floor_treewidth,
     heatmap_specification_avg_runtime,
     heatmap_specification_max_treewidth,
     heatmap_specification_max_runtime,
@@ -217,7 +245,7 @@ boxplot_axis_specification_treewidth = dict(
     x_axis_ticks=[0, 10, 20, 30, 38],
     filename="treewidth",
     x_axis_function=lambda tw_result: tw_result.treewidth,
-    plot_title="Tree Decomposition Computation"
+    plot_title="Tree Decomposition Runtime"
 )
 
 boxplot_axis_specification_num_nodes = dict(
@@ -225,16 +253,16 @@ boxplot_axis_specification_num_nodes = dict(
     x_axis_ticks=[5, 10, 20, 30, 40, 50],
     filename="num_nodes",
     x_axis_function=lambda tw_result: tw_result.num_nodes,
-    plot_title="undefined"
+    plot_title="Tree Decomposition Runtime"
 )
 
 boxplot_axis_specification_probability = dict(
     x_axis_title="Edge Connection Probability (%)",
-    x_axis_ticks=[1, 10, 20, 30, 40, 50],
+    x_axis_ticks=[5, 10, 20, 30, 40, 50,60,70,80,90,95],
     filename="probability",
     x_axis_function=lambda tw_result: tw_result.edge_probability,
     box_position_function=lambda x: 100 * x,
-    plot_title="undefined"
+    plot_title="Tree Decomposition Runtime"
 )
 
 global_boxplot_axes_specfications = [
@@ -282,7 +310,7 @@ decomposition_runtime_plot_axis_specification_num_nodes = dict(
     x_axis_ticks=[5, 10, 20, 30, 40, 45],
     filename="num_nodes",
     x_axis_function=lambda tw_result: tw_result.num_nodes,
-    plot_title="undefined"
+    plot_title="Decomposition Runtime"
 )
 
 decomposition_runtime_plot_axis_specification_probability = dict(
@@ -290,7 +318,7 @@ decomposition_runtime_plot_axis_specification_probability = dict(
     x_axis_ticks=[10, 20, 30, 40, 50, 60, 70, 80, 90],
     filename="probability",
     x_axis_function=lambda tw_result: tw_result.edge_probability,
-    plot_title="undefined"
+    plot_title="Decomposition Runtime"
 )
 
 global_decomposition_runtime_plot_axes_specfications = [
@@ -328,12 +356,12 @@ class AbstractPlotter(object):
 
     def _construct_output_path_and_filename(self, title, filter_specifications=None):
         filter_spec_path = ""
-        filter_filename = "no_filter.{}".format(OUTPUT_FILETYPE)
+        filter_filename = "no_filter.{}".format(self.output_filetype)
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
-        base = os.path.normpath(OUTPUT_PATH)
+        base = os.path.normpath(self.output_path)
         date = strftime("%Y-%m-%d", gmtime())
-        output_path = os.path.join(base, date, OUTPUT_FILETYPE, "general", filter_spec_path)
+        output_path = os.path.join(base, date, self.output_filetype, "general", filter_spec_path)
         filename = os.path.join(output_path, title + "_" + filter_filename)
         return output_path, filename
 
@@ -343,7 +371,7 @@ class AbstractPlotter(object):
         for spec in filter_specifications:
             filter_path = os.path.join(filter_path, (spec['parameter'] + "_" + str(spec['value'])))
             filter_filename += spec['parameter'] + "_" + str(spec['value']) + "_"
-        filter_filename = filter_filename[:-1] + "." + OUTPUT_FILETYPE
+        filter_filename = filter_filename[:-1] + "." + self.output_filetype
         return filter_path, filter_filename
 
     def _show_and_or_save_plots(self, output_path, filename):
@@ -502,7 +530,7 @@ class SingleBoxplotPlotter(AbstractPlotter):
 
     def _get_path_to_pickle_file(self, base_filename):
         pickle_filename = "{}__sample_rate_{}.pickle".format(base_filename, self.sampling_rate)
-        return os.path.join(os.path.normpath(OUTPUT_PATH), "data_pickles", pickle_filename)
+        return os.path.join(os.path.normpath(self.output_path), "data_pickles", pickle_filename)
 
     def _process_data(self, boxplot_axes_specification, boxplot_metric_specification):
         t_start = time()
@@ -735,7 +763,7 @@ class DecompositionRuntimePlotter(AbstractPlotter):
 
     def _get_path_to_pickle_file(self, base_filename):
         pickle_filename = "{}__sample_rate_{}.pickle".format(base_filename, self.sampling_rate)
-        return os.path.join(os.path.normpath(OUTPUT_PATH), "data_pickles", pickle_filename)
+        return os.path.join(os.path.normpath(self.output_path), "data_pickles", pickle_filename)
 
     def _process_data(self, decomposition_runtime_axes_specification, boxplot_metric_specification):
         t_start = time()
@@ -817,13 +845,13 @@ class SingleHeatmapPlotter(AbstractPlotter):
 
     def _construct_output_path_and_filename(self, metric_specification, heatmap_axes_specification, filter_specifications=None):
         filter_spec_path = ""
-        filter_filename = "no_filter.{}".format(OUTPUT_FILETYPE)
+        filter_filename = "no_filter.{}".format(self.output_filetype)
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
-        base = os.path.normpath(OUTPUT_PATH)
+        base = os.path.normpath(self.output_path)
         date = strftime("%Y-%m-%d", gmtime())
         axes_foldername = heatmap_axes_specification['foldername']
-        output_path = os.path.join(base, date, OUTPUT_FILETYPE, axes_foldername, filter_spec_path)
+        output_path = os.path.join(base, date, self.output_filetype, axes_foldername, filter_spec_path)
         filename = os.path.join(output_path, metric_specification['filename'] + "_" + filter_filename)
         return output_path, filename
 
@@ -968,10 +996,10 @@ class SingleHeatmapPlotter(AbstractPlotter):
         self._show_and_or_save_plots(output_path, filename)
 
 
-def plot_heatmaps(parameters, data):
+def plot_heatmaps(parameters, data, output_path, output_filetype):
     baseline_plotter = SingleHeatmapPlotter(
-        output_path=OUTPUT_PATH,
-        output_filetype=OUTPUT_FILETYPE,
+        output_path=output_path,
+        output_filetype=output_filetype,
         experiment_parameters=parameters,
         heatmap_plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Average,
         data_dict=data,
@@ -982,8 +1010,8 @@ def plot_heatmaps(parameters, data):
     )
     baseline_plotter.plot_figure()
     baseline_plotter = SingleHeatmapPlotter(
-        output_path=OUTPUT_PATH,
-        output_filetype=OUTPUT_FILETYPE,
+        output_path=output_path,
+        output_filetype=output_filetype,
         experiment_parameters=parameters,
         heatmap_plot_type=HeatmapPlotType.Simple_Treewidth_Evaluation_Max,
         data_dict=data,
@@ -995,10 +1023,10 @@ def plot_heatmaps(parameters, data):
     baseline_plotter.plot_figure()
 
 
-def plot_boxplots(parameters, data):
+def plot_boxplots(parameters, data, output_path, output_filetype):
     baseline_plotter = SingleBoxplotPlotter(
-        output_path=OUTPUT_PATH,
-        output_filetype=OUTPUT_FILETYPE,
+        output_path=output_path,
+        output_filetype=output_filetype,
         experiment_parameters=parameters,
         boxplot_plot_type=BoxplotPlotType.Simple_Treewidth_Evaluation_Boxplot,
         data_dict=data,
@@ -1011,10 +1039,10 @@ def plot_boxplots(parameters, data):
     baseline_plotter.plot_figure()
 
 
-def plot_decomposition_runtime_plots(parameters, data):
+def plot_decomposition_runtime_plots(parameters, data, output_path, output_filetype):
     baseline_plotter = DecompositionRuntimePlotter(
-        output_path=OUTPUT_PATH,
-        output_filetype=OUTPUT_FILETYPE,
+        output_path=output_path,
+        output_filetype=output_filetype,
         experiment_parameters=parameters,
         decomposition_runtime_plot_type=DecompositionRuntimePlotType.Simple_Treewidth_Evaluation_DecompositionRuntimePlot,
         data_dict=data,
@@ -1029,10 +1057,10 @@ def plot_decomposition_runtime_plots(parameters, data):
     baseline_plotter.plot_figure()
 
 
-def make_plots(parameters_file, results_pickle):
+def make_plots(parameters_file, results_pickle, output_path, output_filetype):
     parameters = yaml.load(parameters_file)
     results = pickle.load(results_pickle)
 
-    plot_heatmaps(parameters, results)
-    plot_decomposition_runtime_plots(parameters, results)
-    plot_boxplots(parameters, results)
+    plot_heatmaps(parameters, results, output_path, output_filetype)
+    plot_decomposition_runtime_plots(parameters, results, output_path, output_filetype)
+    plot_boxplots(parameters, results, output_path, output_filetype)

@@ -48,9 +48,9 @@ logger = logging.getLogger(__name__)
     - the number of repetitions."""
 
 
-def run_experiment_from_yaml(parameter_file, output_file_base_name, threads, timeout):
+def run_experiment_from_yaml(parameter_file, output_file_base_name, threads, timeout,remove_intermediate_solutions):
     param_space = yaml.load(parameter_file)
-    sg = SimpleTreeDecompositionExperiment(threads, output_file_base_name, timeout)
+    sg = SimpleTreeDecompositionExperiment(threads, output_file_base_name, timeout, remove_intermediate_solutions)
     sg.start_experiments(param_space)
 
 
@@ -58,7 +58,7 @@ class SimpleTreeDecompositionExperiment(object):
     """ Generates the full parameter space and executes the experiments given the number of threads passed to the constructor.
     Mostly copied from alib.scenariogeneration, but uses the build_scenario_simple function defined below instead."""
 
-    def __init__(self, threads, output_file_base, timeout=None):
+    def __init__(self, threads, output_file_base, timeout=None, remove_process_pickles=False):
         self.threads = threads
         self.output_file_base_name = output_file_base
         self.output_filenames = [
@@ -66,6 +66,7 @@ class SimpleTreeDecompositionExperiment(object):
             for process_index in range(self.threads)
         ]
         self.timeout = timeout
+        self.remove_process_pickles = remove_process_pickles
 
     def start_experiments(self, scenario_parameter_space):
         number_of_repetitions = 1
@@ -126,11 +127,16 @@ class SimpleTreeDecompositionExperiment(object):
                 except EOFError:
                     pass
 
-
         pickle_file = self.output_file_base_name.format(process_index="aggregated_results")
         logger.info("Writing combined Pickle to {}".format(pickle_file))
         with open(pickle_file, "w") as f:
             pickle.dump(result_dict, f)
+
+        if self.remove_process_pickles:
+            for fname in self.output_filenames:
+                if os.path.exists(fname):
+                    logger.info("Removing intermediate process result file {}".format(fname))
+                    os.remove(fname)
 
 
 def execute_single_experiment(process_index,

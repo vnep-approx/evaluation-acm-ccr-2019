@@ -30,6 +30,10 @@ import os
 from itertools import combinations, product
 from time import gmtime, strftime
 
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
 import matplotlib.patches as mpatches
 import matplotlib.colors
 import matplotlib.pyplot as plt
@@ -44,9 +48,6 @@ except ImportError:
     import pickle
 
 REQUIRED_FOR_PICKLE = solutions  # this prevents pycharm from removing this import, which is required for unpickling solutions
-
-OUTPUT_PATH = None
-OUTPUT_FILETYPE = "png"
 
 BOX_WIDTH = 0.5
 BOX_SEPARATION_WITHIN_GROUP = 0.6
@@ -468,7 +469,7 @@ class AbstractPlotter(object):
         filter_filename = "no_filter.{}".format(self.output_filetype)
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
-        base = os.path.normpath(OUTPUT_PATH)
+        base = os.path.normpath(self.output_path)
         date = strftime("%Y-%m-%d", gmtime())
         output_path = os.path.join(base, date, self.output_filetype, "general_plots", filter_spec_path)
         filename = os.path.join(output_path, title + "_" + filter_filename)
@@ -558,7 +559,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
         if filter_specifications:
             filter_spec_path, filter_filename = self._construct_path_and_filename_for_filter_spec(filter_specifications)
 
-        base = os.path.normpath(OUTPUT_PATH)
+        base = os.path.normpath(self.output_path)
         date = strftime("%Y-%m-%d", gmtime())
         axes_foldername = "{}__{}".format(outer_axis["x_axis_title_short"], inner_axis["x_axis_title_short"])
         sub_param_string = self.algorithm_variant_to_be_considered
@@ -674,7 +675,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
             solution_count_string = "between {} and {} values per square".format(min_number_of_observed_values,
                                                                                  max_number_of_observed_values)
 
-        fig, ax = plt.subplots(figsize=(4.5, 3.5))
+        fig, ax = plt.subplots(figsize=(4, 3.5))
         if self.paper_mode:
             ax.set_title(metric_specification["name"], fontsize=PLOT_TITLE_FONTSIZE)
         else:
@@ -811,9 +812,9 @@ def _construct_filter_specs(scenario_parameter_space_dict, parameter_filter_keys
     return result_list
 
 
-def evaluate_randround_runtimes(dc_randround,
-                                randround_algorithm_id,
-                                randround_execution_id,
+def evaluate_randround_runtimes(dc_randround_seplp_dynvmp,
+                                randround_seplp_algorithm_id,
+                                randround_seplp_execution_id,
                                 exclude_generation_parameters=None,
                                 parameter_filter_keys=None,
                                 forbidden_scenario_ids=None,
@@ -830,12 +831,12 @@ def evaluate_randround_runtimes(dc_randround,
     if exclude_generation_parameters is not None:
         for key, values_to_exclude in exclude_generation_parameters.iteritems():
             parameter_filter_path, parameter_values = extract_parameter_range(
-                dc_randround.scenario_parameter_container.scenarioparameter_room, key)
+                dc_randround_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room, key)
 
             parameter_dicts_vine = lookup_scenario_parameter_room_dicts_on_path(
-                dc_randround.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
+                dc_randround_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
             parameter_dicts_randround = lookup_scenario_parameter_room_dicts_on_path(
-                dc_randround.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
+                dc_randround_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
 
             for value_to_exclude in values_to_exclude:
 
@@ -846,7 +847,7 @@ def evaluate_randround_runtimes(dc_randround,
 
                 # add respective scenario ids to the set of forbidden scenario ids
                 forbidden_scenario_ids.update(set(lookup_scenarios_having_specific_values(
-                    dc_randround.scenario_parameter_container.scenario_parameter_dict, parameter_filter_path, value_to_exclude)))
+                    dc_randround_seplp_dynvmp.scenario_parameter_container.scenario_parameter_dict, parameter_filter_path, value_to_exclude)))
 
             # remove the respective values from the scenario parameter room such that these are not considered when
             # constructing e.g. axes
@@ -856,7 +857,7 @@ def evaluate_randround_runtimes(dc_randround,
                                                   value not in values_to_exclude]
 
     if parameter_filter_keys is not None:
-        filter_specs = _construct_filter_specs(dc_randround.scenario_parameter_container.scenarioparameter_room,
+        filter_specs = _construct_filter_specs(dc_randround_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room,
                                                parameter_filter_keys,
                                                maxdepth=maxdepthfilter)
     else:
@@ -867,9 +868,9 @@ def evaluate_randround_runtimes(dc_randround,
     boxplotter_plotter = RuntimeBoxplotPlotter(
         output_path=output_path,
         output_filetype=output_filetype,
-        scenario_solution_storage=dc_randround,
-        algorithm_id=randround_algorithm_id,
-        execution_id=randround_execution_id,
+        scenario_solution_storage=dc_randround_seplp_dynvmp,
+        algorithm_id=randround_seplp_algorithm_id,
+        execution_id=randround_seplp_execution_id,
         show_plot=show_plot,
         save_plot=save_plot,
         overwrite_existing_files=overwrite_existing_files,

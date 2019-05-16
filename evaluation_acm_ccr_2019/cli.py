@@ -29,7 +29,7 @@ import click
 from . import treewidth_computation_experiments
 from . import treewidth_computation_plots
 from . import runtime_comparison_separation_dynvmp_vs_lp as sep_dynvmp_vs_lp
-from . import plot_data
+from . import plot_data, algorithm_heatmap_plots, runtime_evaluation
 from alib import util
 from alib import datamodel
 
@@ -53,7 +53,8 @@ def cli():
 @click.argument('yaml_parameter_file', type=click.File('r'))
 @click.option('--threads', default=1)
 @click.option('--timeout', type=click.INT, default=-1)
-def execute_treewidth_computation_experiment(yaml_parameter_file, threads, timeout):
+@click.option('--remove_intermediate_solutions/--keep_intermediate_solutions', is_flag=True, default=False, help="shall intermediate solutions be removed after execution?")
+def execute_treewidth_computation_experiment(yaml_parameter_file, threads, timeout, remove_intermediate_solutions):
     click.echo('Generate Scenarios for evaluation of the treewidth model')
 
     util.ExperimentPathHandler.initialize()
@@ -66,7 +67,11 @@ def execute_treewidth_computation_experiment(yaml_parameter_file, threads, timeo
     output_file = os.path.join(util.ExperimentPathHandler.OUTPUT_DIR,
                                "{}_results_{{process_index}}.pickle".format(file_basename))
     util.initialize_root_logger(log_file)
-    treewidth_computation_experiments.run_experiment_from_yaml(yaml_parameter_file, output_file, threads, timeout)
+    treewidth_computation_experiments.run_experiment_from_yaml(yaml_parameter_file,
+                                                               output_file,
+                                                               threads,
+                                                               timeout,
+                                                               remove_intermediate_solutions)
 
 @cli.command(short_help="extracts undirected graphs")
 @click.argument('input_pickle_file', type=click.Path())
@@ -79,9 +84,12 @@ def execute_treewidth_computation_experiment(yaml_parameter_file, threads, timeo
 @click.option('--max_conn_prob', type=click.FLOAT, default=1.0)
 def create_undirected_graph_storage_from_treewidth_experiments(input_pickle_file,
                                                                output_pickle_file,
-                                                               min_tw, max_tw,
-                                                               min_nodes, max_nodes,
-                                                               min_conn_prob, max_conn_prob):
+                                                               min_tw,
+                                                               max_tw,
+                                                               min_nodes,
+                                                               max_nodes,
+                                                               min_conn_prob,
+                                                               max_conn_prob):
     util.ExperimentPathHandler.initialize()
     file_basename = os.path.basename(input_pickle_file).split(".")[0].lower()
     log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR, "creation_undirected_graph_storage_from_treewidth_{}.log".format(file_basename))
@@ -101,6 +109,8 @@ def create_undirected_graph_storage_from_treewidth_experiments(input_pickle_file
         logger.info("Handling graphs stored for number of nodes {}".format(number_of_nodes))
         data_for_nodes = input_contents[number_of_nodes]
         for connection_probability in data_for_nodes.keys():
+            if connection_probability < min_conn_prob or connection_probability > max_conn_prob:
+                continue
             list_of_results = data_for_nodes[connection_probability]
             for treewidth_computation_result in list_of_results:
                 result_tw = treewidth_computation_result.treewidth
@@ -121,8 +131,10 @@ def create_undirected_graph_storage_from_treewidth_experiments(input_pickle_file
 @cli.command()
 @click.argument('parameters_file', type=click.File('r'))
 @click.argument('results_pickle_file', type=click.File('r'))
-def treewidth_plot_computation_results(parameters_file, results_pickle_file):
-    treewidth_computation_plots.make_plots(parameters_file, results_pickle_file)
+@click.argument('output_path', type=click.Path())
+@click.option('--output_filetype', type=click.Choice(['png', 'pdf', 'eps']), default="png", help="the filetype which shall be created")
+def treewidth_plot_computation_results(parameters_file, results_pickle_file, output_path, output_filetype):
+    treewidth_computation_plots.make_plots(parameters_file, results_pickle_file, output_path, output_filetype)
 
 
 @cli.command(short_help="extracts data to be plotted for randomized rounding algorithms")
@@ -130,7 +142,7 @@ def treewidth_plot_computation_results(parameters_file, results_pickle_file):
 @click.option('--output_pickle_file', type=click.Path(), default=None, help="file to write to")
 @click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
 @click.option('--log_level_file', type=click.STRING, default="debug", help="log level for log file")
-def reduce_to_plotdata_rand_round_pickle(input_pickle_file, output_pickle_file, log_level_print, log_level_file):
+def reduce_to_plotdata_rr_seplp_optdynvmp(input_pickle_file, output_pickle_file, log_level_print, log_level_file):
     """ Given a scenario solution pickle (input_pickle_file) this function extracts data
         to be plotted and writes it to --output_pickle_file. If --output_pickle_file is not
         given, a default name (derived from the input's basename) is derived.
@@ -152,7 +164,7 @@ def reduce_to_plotdata_rand_round_pickle(input_pickle_file, output_pickle_file, 
 @click.option('--output_pickle_file', type=click.Path(), default=None, help="file to write to")
 @click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
 @click.option('--log_level_file', type=click.STRING, default="debug", help="log level for log file")
-def reduce_to_plotdata_vine_pickle(input_pickle_file, output_pickle_file, log_level_print, log_level_file):
+def reduce_to_plotdata_vine(input_pickle_file, output_pickle_file, log_level_print, log_level_file):
     """ Given a scenario solution pickle (input_pickle_file) this function extracts data
         to be plotted and writes it to --output_pickle_file. If --output_pickle_file is not
         given, a default name (derived from the input's basename) is derived.
@@ -230,44 +242,42 @@ def query_algorithm_id_and_execution_id(logger,
 
     return algorithm_id, execution_config_id
 
-@cli.command(short_help="create plots for baseline and randround solution")
+@cli.command(short_help="create plot comparing runtime of cactus lp and the separation lp with dynvmp")
 @click.argument('sep_lp_dynvmp_reduced_pickle', type=click.Path())     #pickle in ALIB_EXPERIMENT_HOME/input storing randround results
-@click.argument('ifip_randround_pickle', type=click.Path())      #pickle in ALIB_EXPERIMENT_HOME/input storing baseline results
+@click.argument('cactus_lp_reduced_pickle', type=click.Path())      #pickle in ALIB_EXPERIMENT_HOME/input storing baseline results
 @click.argument('output_directory', type=click.Path())          #path to which the result will be written
 @click.option('--sep_lp_dynvmp_algorithm_id', type=click.STRING, default=None, help="algorithm id of sep_lp_dynvmp algorithm; if not given it will be asked for.")
 @click.option('--sep_lp_dynvmp_execution_config', type=click.INT, default=None, help="execution (configuration) id of sep_lp_dynvmp alg; if not given it will be asked for.")
-@click.option('--randround_algorithm_id', type=click.STRING, default=None, help="algorithm id of randround algorithm; if not given it will be asked for.")
-@click.option('--randround_execution_config', type=click.INT, default=None, help="execution (configuration) id of randround alg; if not given it will be asked for.")
+@click.option('--cactus_lp_algorithm_id', type=click.STRING, default=None, help="algorithm id of cactus lp algorithm; if not given it will be asked for.")
+@click.option('--cactus_lp_execution_config', type=click.INT, default=None, help="execution (configuration) id of cactus lp alg; if not given it will be asked for.")
 @click.option('--exclude_generation_parameters', type=click.STRING, default=None, help="generation parameters that shall be excluded. "
                                                                                        "Must ge given as python evaluable list of dicts. "
                                                                                        "Example format: \"{'number_of_requests': [20]}\"")
-@click.option('--overwrite/--no_overwrite', default=True, help="overwrite existing files?")
-@click.option('--papermode/--non-papermode', default=True, help="output 'paper-ready' figures or figures containing additional statistical data?")
 @click.option('--output_filetype', type=click.Choice(['png', 'pdf', 'eps']), default="png", help="the filetype which shall be created")
 @click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
 @click.option('--log_level_file', type=click.STRING, default="debug", help="log level for stdout")
-def evaluate_results(sep_lp_dynvmp_reduced_pickle,
-                     ifip_randround_pickle,
-                     output_directory,
-                     sep_lp_dynvmp_algorithm_id,
-                     sep_lp_dynvmp_execution_config,
-                     randround_algorithm_id,
-                     randround_execution_config,
-                     exclude_generation_parameters,
-                     overwrite,
-                     papermode,
-                     output_filetype,
-                     log_level_print,
-                     log_level_file):
+@click.option('--request_sets', type=click.STRING, default="[[40,60],[80,100]]", help="list of request lists to aggregate")
+def evaluate_separation_vs_cactus_lp(sep_lp_dynvmp_reduced_pickle,
+                                     cactus_lp_reduced_pickle,
+                                     output_directory,
+                                     sep_lp_dynvmp_algorithm_id,
+                                     sep_lp_dynvmp_execution_config,
+                                     cactus_lp_algorithm_id,
+                                     cactus_lp_execution_config,
+                                     exclude_generation_parameters,
+                                     output_filetype,
+                                     log_level_print,
+                                     log_level_file,
+                                     request_sets):
 
     util.ExperimentPathHandler.initialize(check_emptiness_log=False, check_emptiness_output=False)
     log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR,
                             "evaluate_pickles_{}_{}.log".format(os.path.basename(sep_lp_dynvmp_reduced_pickle),
-                                                                os.path.basename(ifip_randround_pickle)))
+                                                                os.path.basename(cactus_lp_reduced_pickle)))
     initialize_logger(log_file, log_level_print, log_level_file, allow_override=True)
 
     lp_sep_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, sep_lp_dynvmp_reduced_pickle)
-    randround_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, ifip_randround_pickle)
+    randround_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, cactus_lp_reduced_pickle)
 
     #get root logger
     logger = logging.getLogger()
@@ -290,11 +300,11 @@ def evaluate_results(sep_lp_dynvmp_reduced_pickle,
                                                                                                      sep_lp_dynvmp_algorithm_id,
                                                                                                      sep_lp_dynvmp_execution_config)
 
-    randround_algorithm_id, randround_execution_config = query_algorithm_id_and_execution_id(logger,
-                                                                                             ifip_randround_pickle,
+    cactus_lp_algorithm_id, cactus_lp_execution_config = query_algorithm_id_and_execution_id(logger,
+                                                                                             cactus_lp_reduced_pickle,
                                                                                              randround_results.execution_parameter_container,
-                                                                                             randround_algorithm_id,
-                                                                                             randround_execution_config)
+                                                                                             cactus_lp_algorithm_id,
+                                                                                             cactus_lp_execution_config)
 
     output_directory = os.path.normpath(output_directory)
 
@@ -304,17 +314,142 @@ def evaluate_results(sep_lp_dynvmp_reduced_pickle,
         exclude_generation_parameters = eval(exclude_generation_parameters)
 
     logger.info("Starting evaluation...")
+
+    logger.info("Trying to parse request sets (expecting list of lists)")
+    request_sets_parsed = eval(request_sets)
+
     sep_dynvmp_vs_lp.evaluate_baseline_and_randround(sep_lp_dynvmp_results,
                                                      sep_lp_dynvmp_algorithm_id,
                                                      sep_lp_dynvmp_execution_config,
                                                      randround_results,
-                                                     randround_algorithm_id,
-                                                     randround_execution_config,
+                                                     cactus_lp_algorithm_id,
+                                                     cactus_lp_execution_config,
                                                      exclude_generation_parameters=exclude_generation_parameters,
-                                                     overwrite_existing_files=(overwrite),
                                                      output_path=output_directory,
                                                      output_filetype=output_filetype,
-                                                     papermode=papermode)
+                                                     request_sets=request_sets_parsed)
+
+
+@cli.command(short_help="create plots comparing randomized rounding solutions (separation LP) with ViNE solutions")
+@click.argument('sep_lp_dynvmp_reduced_pickle', type=click.Path())     #pickle in ALIB_EXPERIMENT_HOME/input storing randround results
+@click.argument('vine_reduced_pickle', type=click.Path())      #pickle in ALIB_EXPERIMENT_HOME/input storing baseline results
+@click.argument('output_directory', type=click.Path())          #path to which the result will be written
+@click.option('--sep_lp_dynvmp_algorithm_id', type=click.STRING, default=None, help="algorithm id of sep_lp_dynvmp algorithm; if not given it will be asked for.")
+@click.option('--sep_lp_dynvmp_execution_config', type=click.INT, default=None, help="execution (configuration) id of sep_lp_dynvmp alg; if not given it will be asked for.")
+@click.option('--vine_algorithm_id', type=click.STRING, default=None, help="algorithm id of randround algorithm; if not given it will be asked for.")
+@click.option('--vine_execution_config', type=click.INT, default=None, help="execution (configuration) id of randround alg; if not given it will be asked for.")
+@click.option('--exclude_generation_parameters', type=click.STRING, default=None, help="generation parameters that shall be excluded. "
+                                                                                       "Must ge given as python evaluable list of dicts. "
+                                                                                       "Example format: \"{'number_of_requests': [20]}\"")
+@click.option('--overwrite/--no_overwrite', default=True, help="overwrite existing files?")
+@click.option('--papermode/--non-papermode', default=True, help="output 'paper-ready' figures or figures containing additional statistical data?")
+@click.option('--output_filetype', type=click.Choice(['png', 'pdf', 'eps']), default="png", help="the filetype which shall be created")
+@click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
+@click.option('--log_level_file', type=click.STRING, default="debug", help="log level for stdout")
+@click.option('--request_sets', type=click.STRING, default="[[40,60],[80,100]]", help="list of request lists to aggregate")
+def evaluate_separation_randround_vs_vine(sep_lp_dynvmp_reduced_pickle,
+                                          vine_reduced_pickle,
+                                          output_directory,
+                                          sep_lp_dynvmp_algorithm_id,
+                                          sep_lp_dynvmp_execution_config,
+                                          vine_algorithm_id,
+                                          vine_execution_config,
+                                          exclude_generation_parameters,
+                                          overwrite,
+                                          papermode,
+                                          output_filetype,
+                                          log_level_print,
+                                          log_level_file,
+                                          request_sets):
+
+    util.ExperimentPathHandler.initialize(check_emptiness_log=False, check_emptiness_output=False)
+    log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR,
+                            "evaluate_pickles_{}_{}.log".format(os.path.basename(sep_lp_dynvmp_reduced_pickle),
+                                                                os.path.basename(vine_reduced_pickle)))
+    initialize_logger(log_file, log_level_print, log_level_file, allow_override=True)
+
+    lp_sep_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, sep_lp_dynvmp_reduced_pickle)
+    vine_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, vine_reduced_pickle)
+
+    #get root logger
+    logger = logging.getLogger()
+
+    logger.info("Reading reduced lp_sep_pickle pickle at {}".format(lp_sep_pickle_path))
+    sep_lp_dynvmp_results = None
+    with open(lp_sep_pickle_path, "rb") as f:
+        sep_lp_dynvmp_results = pickle.load(f)
+
+    logger.info("Reading reduced vine pickle at {}".format(vine_pickle_path))
+    vine_results = None
+    with open(vine_pickle_path, "rb") as f:
+        vine_results = pickle.load(f)
+
+    logger.info("Loading algorithm identifiers and execution ids..")
+
+    sep_lp_dynvmp_algorithm_id, sep_lp_dynvmp_execution_config = query_algorithm_id_and_execution_id(logger,
+                                                                                                     sep_lp_dynvmp_reduced_pickle,
+                                                                                                     sep_lp_dynvmp_results.execution_parameter_container,
+                                                                                                     sep_lp_dynvmp_algorithm_id,
+                                                                                                     sep_lp_dynvmp_execution_config)
+
+    vine_algorithm_id, vine_execution_config = query_algorithm_id_and_execution_id(logger,
+                                                                                   vine_reduced_pickle,
+                                                                                   vine_results.execution_parameter_container,
+                                                                                   vine_algorithm_id,
+                                                                                   vine_execution_config)
+
+    output_directory = os.path.normpath(output_directory)
+
+    logger.info("Setting output path to {}".format(output_directory))
+
+    if exclude_generation_parameters is not None:
+        exclude_generation_parameters = eval(exclude_generation_parameters)
+
+    logger.info("Starting evaluation...")
+
+    logger.info("Trying to parse request sets (expecting list of lists)")
+    request_sets_parsed = eval(request_sets)
+
+    if exclude_generation_parameters is not None:
+        exclude_generation_parameters = eval(exclude_generation_parameters)
+
+    algorithm_heatmap_plots.evaluate_vine_and_randround(
+        dc_vine=vine_results,
+        vine_algorithm_id=vine_algorithm_id,
+        vine_execution_id=vine_execution_config,
+        dc_randround_seplp_dynvmp=sep_lp_dynvmp_results,
+        randround_seplp_algorithm_id=sep_lp_dynvmp_algorithm_id,
+        randround_seplp_execution_id=sep_lp_dynvmp_execution_config,
+        exclude_generation_parameters=exclude_generation_parameters,
+        parameter_filter_keys=None,
+        show_plot=False,
+        save_plot=True,
+        overwrite_existing_files=overwrite,
+        forbidden_scenario_ids=None,
+        papermode=papermode,
+        maxdepthfilter=2,
+        output_path=output_directory,
+        output_filetype=output_filetype,
+        request_sets=request_sets_parsed
+    )
+
+    runtime_evaluation.evaluate_randround_runtimes(
+        dc_randround_seplp_dynvmp=sep_lp_dynvmp_results,
+        randround_seplp_algorithm_id=sep_lp_dynvmp_algorithm_id,
+        randround_seplp_execution_id=sep_lp_dynvmp_execution_config,
+        exclude_generation_parameters=exclude_generation_parameters,
+        parameter_filter_keys=None,
+        show_plot=False,
+        save_plot=True,
+        overwrite_existing_files=overwrite,
+        forbidden_scenario_ids=None,
+        papermode=papermode,
+        maxdepthfilter=2,
+        output_path=output_directory,
+        output_filetype=output_filetype
+    )
+
+
 
 if __name__ == '__main__':
     cli()

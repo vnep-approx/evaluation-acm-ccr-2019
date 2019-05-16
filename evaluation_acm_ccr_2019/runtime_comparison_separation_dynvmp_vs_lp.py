@@ -102,11 +102,10 @@ def evaluate_baseline_and_randround(dc_seplp_dynvmp,
                                     parameter_filter_keys=None,
                                     show_plot=False,
                                     save_plot=True,
-                                    overwrite_existing_files=True,
                                     forbidden_scenario_ids=None,
-                                    papermode=True,
                                     output_path="./",
-                                    output_filetype="png"):
+                                    output_filetype="png",
+                                    request_sets=[[40,60],[80,100]]):
     """ Main function for evaluation, creating plots and saving them in a specific directory hierarchy.
     A large variety of plots is created. For heatmaps, a generic plotter is used while for general
     comparison plots (ECDF and scatter) an own class is used. The plots that shall be generated cannot
@@ -123,9 +122,7 @@ def evaluate_baseline_and_randround(dc_seplp_dynvmp,
     :param parameter_filter_keys:   name of parameters according to which the results shall be filtered
     :param show_plot:               Boolean: shall plots be shown
     :param save_plot:               Boolean: shall the plots be saved
-    :param overwrite_existing_files:   shall existing files be overwritten?
     :param forbidden_scenario_ids:     list / set of scenario ids that shall not be considered in the evaluation
-    :param papermode:                  nicely layouted plots (papermode) or rather additional information?
     :param output_path:                path to which the results shall be written
     :param output_filetype:            filetype supported by matplotlib to export figures
     :return: None
@@ -180,7 +177,10 @@ def evaluate_baseline_and_randround(dc_seplp_dynvmp,
 
     plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set=sep_lp_dynvmp_data_set,
                                             randround_data_set=randround_data_set,
-                                            dc_seplp_dynvmp=dc_seplp_dynvmp)
+                                            dc_seplp_dynvmp=dc_seplp_dynvmp,
+                                            request_sets=request_sets,
+                                            output_path=output_path,
+                                            output_filetype=output_filetype)
 
 
 
@@ -189,7 +189,10 @@ def evaluate_baseline_and_randround(dc_seplp_dynvmp,
 
 def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
                                             randround_data_set,
-                                            dc_seplp_dynvmp):
+                                            dc_seplp_dynvmp,
+                                            request_sets,
+                                            output_path,
+                                            output_filetype):
 
     logger.info(sep_lp_dynvmp_data_set)
 
@@ -208,7 +211,7 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
     def get_color(value):
         return plt.cm.inferno(value)
 
-    colors = [get_color(0.5),get_color(0.0)] #get_color(0.7),
+    colors = [get_color(0.5),get_color(0.0), get_color(0.75), get_color(0.25)] #get_color(0.7),
     #colors = [get_color(0.75), get_color(0.55), get_color(0.35), get_color(0.0)]
     linestyles = ['-', ':']
 
@@ -219,8 +222,6 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
     second_legend_handlers = []
 
     max_observed_value = 0
-
-    request_sets = [[40,60], [80,100]]
 
     for request_number_index, number_of_requests_ in enumerate(request_sets):
         scenario_ids_to_consider = set()
@@ -338,7 +339,8 @@ def plot_comparison_separation_dynvmp_vs_lp(sep_lp_dynvmp_data_set,
 
     ax.grid(True, which="both", linestyle=":", color='k', alpha=0.7, linewidth=0.33)
     plt.tight_layout()
-    plt.savefig("ecdf_speedup_cactus_lp_vs_separation_dynvmp.pdf")
+    file_to_write = os.path.join(output_path, "ecdf_speedup_cactus_lp_vs_separation_dynvmp." + output_filetype)
+    plt.savefig(file_to_write)
 
 
 def plot_comparison_separation_dynvmp_vs_lp_orig(sep_lp_dynvmp_data_set,
