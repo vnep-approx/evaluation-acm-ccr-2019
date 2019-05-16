@@ -46,10 +46,20 @@ def initialize_logger(filename, log_level_print, log_level_file, allow_override=
 
 @click.group()
 def cli():
+    """
+    This command-line interface allows you to access major parts of the VNEP-Approx framework
+    developed by Matthias Rost, Elias Döhne, Alexander Elvers, and Tom Koch.
+    In particular, it allows to reproduce the results presented in the paper:
+
+    "Parametrized Complexity of Virtual Network Embeddings: Dynamic & Linear Programming Approximations": Matthias Rost, Elias Döhne, Stefan Schmid. ACM CCR January 2019
+
+    Note that each commands provides a help page. To access the help, simply type the commmand and --help.
+
+    """
     pass
 
 
-@cli.command()
+@cli.command(short_help="Generate random graphs and compute the treewidth using Tamaki's algorithm.")
 @click.argument('yaml_parameter_file', type=click.File('r'))
 @click.option('--threads', default=1)
 @click.option('--timeout', type=click.INT, default=-1)
@@ -73,7 +83,7 @@ def execute_treewidth_computation_experiment(yaml_parameter_file, threads, timeo
                                                                timeout,
                                                                remove_intermediate_solutions)
 
-@cli.command(short_help="extracts undirected graphs")
+@cli.command(short_help="Extracts undirected graphs from treewidth experiments")
 @click.argument('input_pickle_file', type=click.Path())
 @click.argument('output_pickle_file', type=click.Path())
 @click.argument('min_tw', type=click.INT)
@@ -128,7 +138,7 @@ def create_undirected_graph_storage_from_treewidth_experiments(input_pickle_file
         pickle.dump(graph_storage, f)
 
 
-@cli.command()
+@cli.command(short_help="Generate plots for treewidth computation by Tamaki's algorithm")
 @click.argument('parameters_file', type=click.File('r'))
 @click.argument('results_pickle_file', type=click.File('r'))
 @click.argument('output_path', type=click.Path())
@@ -137,7 +147,7 @@ def treewidth_plot_computation_results(parameters_file, results_pickle_file, out
     treewidth_computation_plots.make_plots(parameters_file, results_pickle_file, output_path, output_filetype)
 
 
-@cli.command(short_help="extracts data to be plotted for randomized rounding algorithms")
+@cli.command(short_help="Extracts data to be plotted for the randomized rounding algorithms (using the separation LP and DynVMP)")
 @click.argument('input_pickle_file', type=click.Path())
 @click.option('--output_pickle_file', type=click.Path(), default=None, help="file to write to")
 @click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
@@ -159,7 +169,7 @@ def reduce_to_plotdata_rr_seplp_optdynvmp(input_pickle_file, output_pickle_file,
     reducer.reduce_randround_result_collection(input_pickle_file, output_pickle_file)
 
 
-@cli.command(short_help="extracts data to be plotted for vine algorithms")
+@cli.command(short_help="Extracts data to be plotted the vine executions")
 @click.argument('input_pickle_file', type=click.Path())
 @click.option('--output_pickle_file', type=click.Path(), default=None, help="file to write to")
 @click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
@@ -242,7 +252,7 @@ def query_algorithm_id_and_execution_id(logger,
 
     return algorithm_id, execution_config_id
 
-@cli.command(short_help="create plot comparing runtime of cactus lp and the separation lp with dynvmp")
+@cli.command(short_help="Create plot comparing runtime of cactus lp and the separation lp with dynvmp")
 @click.argument('sep_lp_dynvmp_reduced_pickle', type=click.Path())     #pickle in ALIB_EXPERIMENT_HOME/input storing randround results
 @click.argument('cactus_lp_reduced_pickle', type=click.Path())      #pickle in ALIB_EXPERIMENT_HOME/input storing baseline results
 @click.argument('output_directory', type=click.Path())          #path to which the result will be written
@@ -330,7 +340,7 @@ def evaluate_separation_vs_cactus_lp(sep_lp_dynvmp_reduced_pickle,
                                                      request_sets=request_sets_parsed)
 
 
-@cli.command(short_help="create plots comparing randomized rounding solutions (separation LP) with ViNE solutions")
+@cli.command(short_help="Create plots comparing randomized rounding solutions (using the separation LP) with ViNE solutions")
 @click.argument('sep_lp_dynvmp_reduced_pickle', type=click.Path())     #pickle in ALIB_EXPERIMENT_HOME/input storing randround results
 @click.argument('vine_reduced_pickle', type=click.Path())      #pickle in ALIB_EXPERIMENT_HOME/input storing baseline results
 @click.argument('output_directory', type=click.Path())          #path to which the result will be written
