@@ -1,0 +1,15 @@
+SCENARIO_INPUT_PICKLE: "treewidth_scenarios_acm_ccr_2019.pickle"
+RESULT_OUTPUT_PICKLE:  "treewidth_scenarios_acm_ccr_2019_vine_results.pickle"
+
+RUN_PARAMETERS:
+    - ALGORITHM:
+        ID: "OfflineViNEAlgorithmCollection"
+
+        GUROBI_PARAMETERS:
+            threads: [1] #use a single thread
+
+        ALGORITHM_PARAMETERS:
+            edge_embedding_model_list: [ !!python/tuple ['SP', 'MCF']]
+            lp_objective_list: [ !!python/tuple ['ViNE_COSTS_DEF', 'ViNE_LB_DEF']]
+            rounding_procedure_list: [ !!python/tuple ['DET', 'RAND']]
+            repetitions_for_randomized_experiments: [20]

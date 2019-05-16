@@ -1,0 +1,39 @@
+data_managers:
+  UndirectedGraphStorage: input/treewidth_computation_acm_ccr_2019_undirected_graph_storage_treewidth_2_to_4.pickle
+
+request_generation:
+    - treewidth:
+        TreewidthRequestGenerator:
+            number_of_requests: [40,60,80,100]                 #4
+            treewidth: [1,2,3,4]                               #4
+            min_number_of_nodes: [5]
+            max_number_of_nodes: [15]
+            node_resource_factor: [0.2, 0.4, 0.6, 0.8, 1.0]    #5
+            edge_resource_factor: [0.25, 0.5, 1.0, 2.0, 4.0]   #5
+            normalize: [True]
+
+
+profit_calculation:
+    - optimal:
+        OptimalEmbeddingProfitCalculator:
+            profit_factor: [1.0]
+            timelimit: [90]
+
+node_placement_restriction_mapping:
+    - neighbors:
+        NeighborhoodSearchRestrictionGenerator:
+            potential_nodes_factor: [0.25]      
+
+substrate_generation:
+    - substrates:
+        TopologyZooReader:
+            topology: [Geant2012]                               #1
+            node_types: [[universal]]
+            node_capacity: [100.0]
+            node_cost_factor: [1.0]                             
+            edge_capacity: [100.0]
+            node_type_distribution: [1.0]
+
+scenario_repetition: 15                                         #15
+                                                                #6k overall
+
