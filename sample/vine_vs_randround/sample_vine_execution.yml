@@ -1,0 +1,16 @@
+SCENARIO_INPUT_PICKLE: "sample_scenarios.pickle"
+RESULT_OUTPUT_PICKLE:  "sample_scenarios_ViNE_results.pickle"
+
+RUN_PARAMETERS:
+    - ALGORITHM:
+        ID: "OfflineViNEAlgorithmCollection"
+
+        GUROBI_PARAMETERS:
+            threads: [1] #use a single thread
+            logtoconsole: [0]
+
+        ALGORITHM_PARAMETERS:
+            edge_embedding_model_list: [ !!python/tuple ['SP', 'MCF']]
+            lp_objective_list: [ !!python/tuple ['ViNE_COSTS_DEF', 'ViNE_LB_DEF']]
+            rounding_procedure_list: [ !!python/tuple ['DET', 'RAND']]
+            repetitions_for_randomized_experiments: [2]

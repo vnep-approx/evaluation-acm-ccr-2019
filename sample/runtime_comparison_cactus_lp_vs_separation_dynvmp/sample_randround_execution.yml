@@ -1,0 +1,23 @@
+SCENARIO_INPUT_PICKLE: "sample_scenarios.pickle"
+RESULT_OUTPUT_PICKLE:  "sample_scenarios_results_cactus.pickle"
+
+RUN_PARAMETERS:
+    - ALGORITHM:
+        ID: RandomizedRoundingTriumvirate
+
+        ALGORITHM_PARAMETERS:
+            number_of_solutions_to_round: [1000]
+
+            mdk_gurobi_parameters: [!!python/tuple ['timelimit', 120, 'threads', 1, 'logtoconsole', 0, 'mipGap', 0.01, 'nodefilestart', 2]]
+
+            decomposition_epsilon: ['1e-9']
+            relative_decomposition_abortion_epsilon: ['1e-3']
+            absolute_decomposition_abortion_epsilon: ['1e-6']
+
+
+        GUROBI_PARAMETERS:
+            timelimit: [3600]
+            threads: [1]
+            numericfocus: [2]
+            method: [2]
+            crossover: [0]
