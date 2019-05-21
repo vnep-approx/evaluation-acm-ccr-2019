@@ -130,6 +130,20 @@ Then, assuming that all packages, i.e. **alib, vnep_approx**, **evaluation_ifip_
 pip install -e .
 ```
 
+## Setting up TCS-Meiji/PACE2017-TrackA
+
+After cloning Tamaki's algorithm [TCS-Meiji/PACE2017-TrackA](https://github.com/TCS-Meiji/PACE2017-TrackA) 
+and setting the environment variable with its location, the Java code needs to be compiled. 
+JRE and JDK can be installed on Linux systems with (default packages should work fine):
+```
+sudo apt install default-jre
+sudo apt install default-jdk
+```
+Running the `make` command in the project root should be successful.
+To enable usage of the `tw-exact` shell script, it must be set to executable.
+By default the `tw-extract` script comes with a setting of 30 Gb heap size allocation. In case of running our algorithm on a PC, the java
+ command's input values might be set to some appropriately lower value (e.g. `-Xmx7g -Xms7g`). 
+
 ## Runtime Comparison Cactus LP vs. Separation LP
 First, to use our framework, make sure that you set the environment variable **ALIB_EXPERIMENT_HOME** to a directory
 containing (initially empty) folders **input/**, **output/**, and **log/**. Having said that, and activated the 
@@ -191,7 +205,7 @@ The respective commands are:
 python -m evaluation_ifip_networking_2018.cli reduce_to_plotdata_randround_pickle sample_scenarios_results_cactus.pickle
 move_logs_and_output log_cactus_reduction_to_plotdata
 
-python -m evaluation_acm_ccr_2019.cli reduce_to_plotdata_rand_round_pickle sample_scenarios_results_seplp_dynvmp.pickle
+python -m evaluation_acm_ccr_2019.cli reduce_to_plotdata_rr_seplp_optdynvmp sample_scenarios_results_seplp_dynvmp.pickle
 move_logs_and_output log_seplp_dynvmp_reduction_to_plotdata
 ```
 

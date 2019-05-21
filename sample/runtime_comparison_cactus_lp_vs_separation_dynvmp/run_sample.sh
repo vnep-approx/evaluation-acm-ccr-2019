@@ -32,7 +32,7 @@ move_logs_and_output log_seplp_dynvmp_execution
 python -m evaluation_ifip_networking_2018.cli reduce_to_plotdata_randround_pickle sample_scenarios_results_cactus.pickle
 move_logs_and_output log_cactus_reduction_to_plotdata
 
-python -m evaluation_acm_ccr_2019.cli reduce_to_plotdata_rand_round_pickle sample_scenarios_results_seplp_dynvmp.pickle
+python -m evaluation_acm_ccr_2019.cli reduce_to_plotdata_rr_seplp_optdynvmp sample_scenarios_results_seplp_dynvmp.pickle
 move_logs_and_output log_seplp_dynvmp_reduction_to_plotdata
 
 #generate plots in folder ./plots
