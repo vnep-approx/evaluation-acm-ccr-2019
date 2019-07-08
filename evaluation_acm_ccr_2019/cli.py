@@ -461,5 +461,156 @@ def evaluate_separation_randround_vs_vine(sep_lp_dynvmp_reduced_pickle,
 
 
 
+
+
+# --------------------------------------- LATENCY EVALUATION ------------------------------------
+
+
+@cli.command(short_help="Extracts data to be plotted for the latency evaluation of the randomized rounding algorithms")
+@click.argument('input_pickle_file', type=click.Path())
+@click.option('--output_pickle_file', type=click.Path(), default=None, help="file to write to")
+@click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
+@click.option('--log_level_file', type=click.STRING, default="debug", help="log level for log file")
+def reduce_to_plotdata_rr_seplp_optdynvmp(input_pickle_file, output_pickle_file, log_level_print, log_level_file):
+    """ Given a scenario solution pickle (input_pickle_file) this function extracts data
+        to be plotted and writes it to --output_pickle_file. If --output_pickle_file is not
+        given, a default name (derived from the input's basename) is derived.
+
+        The input_file must be contained in ALIB_EXPERIMENT_HOME/input and the output
+        will be written to ALIB_EXPERIMENT_HOME/output while the log is saved in
+        ALIB_EXPERIMENT_HOME/log.
+    """
+    util.ExperimentPathHandler.initialize(check_emptiness_log=False, check_emptiness_output=False)
+    log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR,
+                            "reduce_{}.log".format(os.path.basename(input_pickle_file)))
+    initialize_logger(log_file, log_level_print, log_level_file)
+    reducer = plot_data.RandRoundSepLPOptDynVMPCollectionResultReducer()
+    reducer.reduce_randround_result_collection(input_pickle_file, output_pickle_file)
+
+
+
+
+@cli.command(short_help="Create plots comparing the DynVMP runtime with and without considering latencies")
+@click.argument('sep_lp_dynvmp_reduced_pickle', type=click.Path())     #pickle in ALIB_EXPERIMENT_HOME/input storing randround results
+@click.argument('vine_reduced_pickle', type=click.Path())      #pickle in ALIB_EXPERIMENT_HOME/input storing baseline results
+@click.argument('output_directory', type=click.Path())          #path to which the result will be written
+@click.option('--sep_lp_dynvmp_algorithm_id', type=click.STRING, default=None, help="algorithm id of sep_lp_dynvmp algorithm; if not given it will be asked for.")
+@click.option('--sep_lp_dynvmp_execution_config', type=click.INT, default=None, help="execution (configuration) id of sep_lp_dynvmp alg; if not given it will be asked for.")
+@click.option('--vine_algorithm_id', type=click.STRING, default=None, help="algorithm id of randround algorithm; if not given it will be asked for.")
+@click.option('--vine_execution_config', type=click.INT, default=None, help="execution (configuration) id of randround alg; if not given it will be asked for.")
+@click.option('--exclude_generation_parameters', type=click.STRING, default=None, help="generation parameters that shall be excluded. "
+                                                                                       "Must ge given as python evaluable list of dicts. "
+                                                                                       "Example format: \"{'number_of_requests': [20]}\"")
+@click.option('--overwrite/--no_overwrite', default=True, help="overwrite existing files?")
+@click.option('--papermode/--non-papermode', default=True, help="output 'paper-ready' figures or figures containing additional statistical data?")
+@click.option('--output_filetype', type=click.Choice(['png', 'pdf', 'eps']), default="png", help="the filetype which shall be created")
+@click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
+@click.option('--log_level_file', type=click.STRING, default="debug", help="log level for stdout")
+@click.option('--request_sets', type=click.STRING, default="[[40,60],[80,100]]", help="list of request lists to aggregate")
+def evaluate_separation_with_latencies(no_latencies_reduced_pickle,
+                                          with_latencies_reduced_pickle,
+                                          output_directory,
+                                          sep_lp_dynvmp_algorithm_id,
+                                          sep_lp_dynvmp_execution_config,
+                                          vine_algorithm_id,
+                                          vine_execution_config,
+                                          exclude_generation_parameters,
+                                          overwrite,
+                                          papermode,
+                                          output_filetype,
+                                          log_level_print,
+                                          log_level_file,
+                                          request_sets):
+
+    util.ExperimentPathHandler.initialize(check_emptiness_log=False, check_emptiness_output=False)
+    log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR,
+                            "evaluate_pickles_{}_{}.log".format(os.path.basename(no_latencies_reduced_pickle),
+                                                                os.path.basename(with_latencies_reduced_pickle)))
+    initialize_logger(log_file, log_level_print, log_level_file, allow_override=True)
+
+    no_lat_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, no_latencies_reduced_pickle)
+    with_lat_pickle_path = os.path.join(util.ExperimentPathHandler.INPUT_DIR, with_latencies_reduced_pickle)
+
+    #get root logger
+    logger = logging.getLogger()
+
+    logger.info("Reading reduced no_latencies pickle at {}".format(no_latencies_reduced_pickle))
+    no_latencies_results = None
+    with open(no_lat_pickle_path, "rb") as f:
+        no_latencies_results = pickle.load(f)
+
+    logger.info("Reading reduced with_latencies pickle at {}".format(with_latencies_reduced_pickle))
+    with_latencies_results = None
+    with open(with_lat_pickle_path, "rb") as f:
+        with_latencies_results = pickle.load(f)
+
+    logger.info("Loading algorithm identifiers and execution ids..")
+
+    no_latencies_algorithm_id, no_latencies_execution_config = query_algorithm_id_and_execution_id(logger,
+                                                                                                     no_latencies_reduced_pickle,
+                                                                                                     no_latencies_results.execution_parameter_container,
+                                                                                                     sep_lp_dynvmp_algorithm_id,
+                                                                                                     sep_lp_dynvmp_execution_config)
+
+    with_latencies_algorithm_id, with_latencies_execution_config = query_algorithm_id_and_execution_id(logger,
+                                                                                   with_latencies_reduced_pickle,
+                                                                                   with_latencies_results.execution_parameter_container,
+                                                                                   vine_algorithm_id,
+                                                                                   vine_execution_config)
+
+    output_directory = os.path.normpath(output_directory)
+
+    logger.info("Setting output path to {}".format(output_directory))
+
+    if exclude_generation_parameters is not None:
+        exclude_generation_parameters = eval(exclude_generation_parameters)
+
+    logger.info("Starting evaluation...")
+
+    logger.info("Trying to parse request sets (expecting list of lists)")
+    request_sets_parsed = eval(request_sets)
+
+    if exclude_generation_parameters is not None:
+        exclude_generation_parameters = eval(exclude_generation_parameters)
+
+    algorithm_heatmap_plots.evaluate_vine_and_randround(
+        dc_vine=with_latencies_results,
+        vine_algorithm_id=vine_algorithm_id,
+        vine_execution_id=vine_execution_config,
+        dc_randround_seplp_dynvmp=no_latencies_results,
+        randround_seplp_algorithm_id=sep_lp_dynvmp_algorithm_id,
+        randround_seplp_execution_id=sep_lp_dynvmp_execution_config,
+        exclude_generation_parameters=exclude_generation_parameters,
+        parameter_filter_keys=None,
+        show_plot=False,
+        save_plot=True,
+        overwrite_existing_files=overwrite,
+        forbidden_scenario_ids=None,
+        papermode=papermode,
+        maxdepthfilter=2,
+        output_path=output_directory,
+        output_filetype=output_filetype,
+        request_sets=request_sets_parsed
+    )
+
+    runtime_evaluation.evaluate_randround_runtimes(
+        dc_randround_seplp_dynvmp=no_latencies_results,
+        randround_seplp_algorithm_id=sep_lp_dynvmp_algorithm_id,
+        randround_seplp_execution_id=sep_lp_dynvmp_execution_config,
+        exclude_generation_parameters=exclude_generation_parameters,
+        parameter_filter_keys=None,
+        show_plot=False,
+        save_plot=True,
+        overwrite_existing_files=overwrite,
+        forbidden_scenario_ids=None,
+        papermode=papermode,
+        maxdepthfilter=2,
+        output_path=output_directory,
+        output_filetype=output_filetype
+    )
+
+# --------------------------------------------- END ---------------------------------------------
+
+
 if __name__ == '__main__':
     cli()
