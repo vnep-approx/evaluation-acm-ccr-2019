@@ -299,9 +299,13 @@ def extract_parameter_range(scenario_parameter_space, key):
     path = None
     values = set()
     for sps in scenario_parameter_space:
-        new_path, new_values = _extract_parameter_range(
+        x = _extract_parameter_range(
             sps, key, min_recursion_depth=2
         )
+        if x is None:
+            print "key not found: ", key
+            continue
+        new_path, new_values = x
         if path is None:
             path = new_path
         else:
