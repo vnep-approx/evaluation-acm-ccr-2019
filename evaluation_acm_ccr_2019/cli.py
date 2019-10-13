@@ -497,22 +497,30 @@ def reduce_to_plotdata_rr_seplp_optdynvmp(input_pickle_file, output_pickle_file,
 @click.option('--exclude_generation_parameters', type=click.STRING, default=None, help="generation parameters that shall be excluded. "
                                                                                        "Must ge given as python evaluable list of dicts. "
                                                                                        "Example format: \"{'number_of_requests': [20]}\"")
+@click.option('--filter_parameter_keys', type=click.STRING, default=None, help="generation parameters whose values will represent filters. "
+                                                                               "Must be given as string detailing a python list containing strings."
+                                                                               "Example: \"['number_of_requests', 'edge_resource_factor', 'node_resource_factor']\"")
+@click.option('--filter_exec_params', type=click.STRING, default=None, help="execution parameters that shall be used, dropping other options. "
+                                                                                       "Must ge given as python evaluable list of dicts. "
+                                                                                       "Example format: \"{'latency_approximation_type': ['flex']}\"")
 @click.option('--overwrite/--no_overwrite', default=True, help="overwrite existing files?")
 @click.option('--papermode/--non-papermode', default=True, help="output 'paper-ready' figures or figures containing additional statistical data?")
 @click.option('--output_filetype', type=click.Choice(['png', 'pdf', 'eps']), default="png", help="the filetype which shall be created")
+@click.option('--filter_type', type=click.Choice(['strict', 'flex', 'no latencies']), default=None, help="If the solutions should be filtered for one type")
 @click.option('--log_level_print', type=click.STRING, default="info", help="log level for stdout")
 @click.option('--log_level_file', type=click.STRING, default="debug", help="log level for stdout")
-@click.option('--request_sets', type=click.STRING, default="[[40,60],[80,100]]", help="list of request lists to aggregate")
 def evaluate_separation_with_latencies( baseline_reduced_pickle,
                                          with_latencies_reduced_pickle,
                                           output_directory,
                                           exclude_generation_parameters,
+                                          filter_parameter_keys,
+                                          filter_exec_params,
                                           overwrite,
                                           papermode,
                                           output_filetype,
+                                          filter_type,
                                           log_level_print,
-                                          log_level_file,
-                                          request_sets):
+                                          log_level_file):
 
     util.ExperimentPathHandler.initialize(check_emptiness_log=False, check_emptiness_output=False)
     log_file = os.path.join(util.ExperimentPathHandler.LOG_DIR,
@@ -540,19 +548,6 @@ def evaluate_separation_with_latencies( baseline_reduced_pickle,
 
     algorithm_id = "RandRoundSepLPOptDynVMPCollection"
 
-    # _, baseline_execution_config = query_algorithm_id_and_execution_id(logger,
-    #                                                                         baseline_reduced_pickle,
-    #                                                                         baseline_results.execution_parameter_container,
-    #                                                                         algorithm_id,
-    #                                                                         baseline_execution_config)
-    #
-    # _, with_latencies_execution_config = query_algorithm_id_and_execution_id(logger,
-    #                                                                         with_latencies_reduced_pickle,
-    #                                                                         with_latencies_results.execution_parameter_container,
-    #                                                                         algorithm_id,
-    #                                                                          with_latencies_execution_config)
-
-
     output_directory = os.path.normpath(output_directory)
 
     logger.info("Setting output path to {}".format(output_directory))
@@ -560,37 +555,41 @@ def evaluate_separation_with_latencies( baseline_reduced_pickle,
     if exclude_generation_parameters is not None:
         exclude_generation_parameters = eval(exclude_generation_parameters)
 
-    logger.info("Starting evaluation...")
+    if filter_parameter_keys is not None:
+        filter_parameter_keys = eval(filter_parameter_keys)
 
-    logger.info("Trying to parse request sets (expecting list of lists)")
-    request_sets_parsed = eval(request_sets)
+    logger.info("Starting evaluation...")
 
     if exclude_generation_parameters is not None:
         exclude_generation_parameters = eval(exclude_generation_parameters)
+
+    if filter_exec_params is not None:
+        filter_exec_params = eval(filter_exec_params)
+
 
     algorithm_heatmap_plots.evaluate_latency_and_baseline (
         dc_baseline=baseline_results,
         dc_with_latencies=with_latencies_results,
         algorithm_id=algorithm_id,
         exclude_generation_parameters=exclude_generation_parameters,
-        parameter_filter_keys=None,
+        parameter_filter_keys=filter_parameter_keys,
         show_plot=False,
         save_plot=True,
         overwrite_existing_files=overwrite,
         forbidden_scenario_ids=None,
         papermode=papermode,
-        maxdepthfilter=2,
+        maxdepthfilter=10,
         output_path=output_directory,
         output_filetype=output_filetype,
-        request_sets=request_sets_parsed
+        filter_exec_params=filter_exec_params,
     )
 
-    # runtime_evaluation.evaluate_randround_runtimes(
+    # runtime_evaluation.evaluate_randround_runtimes_latency_study(
     #     dc_randround_seplp_dynvmp=with_latencies_results,
+    #     dc_baseline=baseline_results,
     #     randround_seplp_algorithm_id=algorithm_id,
-    #     randround_seplp_execution_id=with_latencies_execution_config,
     #     exclude_generation_parameters=exclude_generation_parameters,
-    #     parameter_filter_keys=None,
+    #     parameter_filter_keys=filter_parameter_keys,
     #     show_plot=False,
     #     save_plot=True,
     #     overwrite_existing_files=overwrite,
@@ -598,7 +597,8 @@ def evaluate_separation_with_latencies( baseline_reduced_pickle,
     #     papermode=papermode,
     #     maxdepthfilter=2,
     #     output_path=output_directory,
-    #     output_filetype=output_filetype
+    #     output_filetype=output_filetype,
+    #     filter_exec_params=filter_exec_params,
     # )
 
 # --------------------------------------------- END ---------------------------------------------

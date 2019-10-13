@@ -527,8 +527,8 @@ class HSF_RR_GeneratedMappings(AbstractHeatmapSpecificationSepLPRRFactory):
         name="Generated Mappings [k]",
         filename="lp_generated_mappings",
         vmin=0.0,
-        vmax=25,
-        colorbar_ticks=[x for x in range(0, 26, 5)],
+        vmax=2,
+        colorbar_ticks=[0, 0.5, 1, 1.5, 2],
         cmap="Greens",
         plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
         lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: rr_seplp_result.lp_generated_columns / 1000.0
@@ -619,10 +619,10 @@ def _comparison_profit_best_relative(vine_result, rr_result, vine_settings_list,
     return 100*(best_rr - best_vine) / best_vine
 
 def _comparison_profit_best_relative_latency_study(baseline_result, with_latency_result, baseline_settings_list, with_latency_settings_list):
-    # best_baseline = max([baseline_result.profits[rr_settings].max for rr_settings in baseline_settings_list])
-    # best_with_latency = max([with_latency_result.profits[rr_settings].max for rr_settings in with_latency_settings_list])
-    # return 100*(best_with_latency - best_baseline) / best_baseline
-    return (with_latency_result - baseline_result) / baseline_result
+    best_baseline = max([baseline_result.profits[rr_settings].max for rr_settings in baseline_settings_list])
+    best_with_latency = max([with_latency_result.profits[rr_settings].max for rr_settings in with_latency_settings_list])
+    return 100 * best_with_latency / best_baseline
+    # return (with_latency_result - baseline_result) / baseline_result
 
 
 def _comparison_profit_absolute(vine_result, rr_result, vine_settings_list, rr_settings_list):
@@ -631,10 +631,10 @@ def _comparison_profit_absolute(vine_result, rr_result, vine_settings_list, rr_s
     return best_rr - best_vine
 
 def _comparison_profit_absolute_latency_study(baseline_result, with_latency_result, baseline_settings_list, with_latency_settings_list):
-    # best_vine = max([baseline_result.profits[baseline_settings].max for baseline_settings in baseline_settings_list])
-    # best_rr = max([with_latency_result.profits[with_latency_settings].max for with_latency_settings in with_latency_settings_list])
-    # return best_rr - best_vine
-    return with_latency_result - baseline_result
+    best_baseline = max([baseline_result.profits[baseline_settings].max for baseline_settings in baseline_settings_list])
+    best_rr = max([with_latency_result.profits[with_latency_settings].max for with_latency_settings in with_latency_settings_list])
+    return best_baseline - best_rr
+    # return with_latency_result - baseline_result
 
 def _comparison_profit_qualitative_randround_5perc(vine_result, rr_result, vine_settings_list, rr_settings_list):
     best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in vine_settings_list])
@@ -688,11 +688,11 @@ class HSF_Comp_BestProfit(AbstractHeatmapSpecificationVineVsRandRoundFactory):
 
 class HSF_Comp_BestProfitLatencyStudy(AbstractHeatmapSpecificationVineVsRandRoundFactory):
     prototype = dict(
-        name="Relative Profit: With Latencies vs. Baseline",
+        name="Relative Profit: % of Baseline",
         filename="comparison_baseline_with_latencies",
-        vmin=-100,
-        vmax=+100,
-        colorbar_ticks=[x for x in range(-100, 101, 33)],
+        vmin=0,
+        vmax=+120,
+        colorbar_ticks=[x for x in range(0, 121, 20)],
         cmap="Reds",
         plot_type=HeatmapPlotType.ComparisonLatencyBaseline,
         lookup_function=lambda baseline_result, with_latency_result, baseline_settings_list,
@@ -706,9 +706,9 @@ class HSF_Comp_AbsoluteLatencyStudy(AbstractHeatmapSpecificationVineVsRandRoundF
     prototype = dict(
         name="Absolute Profit: With Latencies vs. Baseline",
         filename="absolute_profit_comp",
-        vmin=-100,
+        vmin=0,
         vmax=+100,
-        colorbar_ticks=[x for x in range(-100, 101, 33)],
+        colorbar_ticks=[x for x in range(0, 101, 20)],
         cmap="Reds",
         plot_type=HeatmapPlotType.ComparisonLatencyBaseline,
         lookup_function=lambda baseline_result, with_latency_result, baseline_settings_list,
@@ -847,7 +847,7 @@ heatmap_specifications_per_type = {
                            HeatmapPlotType.ComparisonVineRandRound]
 }
 heatmap_specifications_per_type[HeatmapPlotType.LatencyStudy] = latency_study_specs
-heatmap_specifications_per_type[HeatmapPlotType.ComparisonLatencyBaseline] = latency_study_specs
+heatmap_specifications_per_type[HeatmapPlotType.ComparisonLatencyBaseline] = latency_study_specs_comparison
 
 
 """
@@ -919,14 +919,14 @@ heatmap_axes_specification_type_epsilon = dict(
     y_axis_parameter="latency_approximation_factor",
     x_axis_title="Type",
     y_axis_title="Epsilon",
-    foldername="AXES_EPSILON_TYPE"
+    foldername="AXES_TYPE_EPSILON"
 )
 heatmap_axes_specification_type_limit = dict(
     x_axis_parameter="latency_approximation_type",
     y_axis_parameter="latency_approximation_limit",
     x_axis_title="Type",
     y_axis_title="Limit",
-    foldername="AXES_LIMIT_TYPE"
+    foldername="AXES_TYPE_LIMIT"
 )
 heatmap_axes_specification_type_edgeres = dict(
     x_axis_parameter="latency_approximation_type",
@@ -934,6 +934,20 @@ heatmap_axes_specification_type_edgeres = dict(
     x_axis_title="Type",
     y_axis_title="Edge Resource Factor",
     foldername="AXES_TYPE_EDGE_RES"
+)
+heatmap_axes_specification_type_requests = dict(
+    x_axis_parameter="latency_approximation_type",
+    y_axis_parameter="number_of_requests",
+    x_axis_title="Type",
+    y_axis_title="Number of Requests",
+    foldername="AXES_TYPE_NUM_REQ"
+)
+heatmap_axes_specification_type_topology = dict(
+    x_axis_parameter="latency_approximation_type",
+    y_axis_parameter="topology",
+    x_axis_title="Type",
+    y_axis_title="Topology",
+    foldername="AXES_TYPE_TOP"
 )
 
 
@@ -950,10 +964,21 @@ global_heatmap_axes_specifications_latency_study = (
     # heatmap_axes_specification_requests_edge_load,
     # heatmap_axes_specification_resources,
     # heatmap_axes_specification_requests_node_load,
-    heatmap_axes_specification_epsilon_limit,
+    # heatmap_axes_specification_epsilon_limit,
     heatmap_axes_specification_type_epsilon,
     heatmap_axes_specification_type_limit,
-    heatmap_axes_specification_type_edgeres,
+    # heatmap_axes_specification_type_edgeres,
+    # heatmap_axes_specification_type_requests,
+    heatmap_axes_specification_type_topology,
+)
+global_heatmap_axes_specifications_latency_study_comparison = ( # has to involve 'type'
+    heatmap_axes_specification_type_epsilon,
+    heatmap_axes_specification_type_limit,
+    # heatmap_axes_specification_type_edgeres,
+    # heatmap_axes_specification_type_requests,
+    # heatmap_axes_specification_type_topology,
+    # heatmap_axes_specification_type_epsilon,
+    # heatmap_axes_specification_resources,
 )
 
 
@@ -1087,7 +1112,7 @@ def _test_():
 _test_()
 
 
-def extract_latency_parameters(algorithm_parameter_list):
+def extract_latency_parameters(algorithm_parameter_list, filter_exec_params=None):
 
     lat_params = dict(
         latency_approximation_factor=set(),
@@ -1098,7 +1123,10 @@ def extract_latency_parameters(algorithm_parameter_list):
     for pars in algorithm_parameter_list:
         algorithm_params = pars['ALGORITHM_PARAMETERS']
         for lat_key in lat_params.keys():
-            lat_params[lat_key].add(algorithm_params[lat_key])
+            if filter_exec_params is not None and lat_key in filter_exec_params.keys():
+                lat_params[lat_key] = [filter_exec_params[lat_key]]
+            else:
+                lat_params[lat_key].add(algorithm_params[lat_key])
 
     for key, value in lat_params.iteritems():
         lat_params[key] = list(value)
@@ -1116,7 +1144,7 @@ def find_scenarios_for_params(solution_container, algorithm_id, lat_params):
         lat_scenarios[key] = valueDict
 
     container = solution_container.algorithm_scenario_solution_dictionary[algorithm_id]
-    exec_param_container = solution_container.execution_parameter_container
+    exec_param_container = solution_container.execution_parameter_container.get_execution_ids(ALG_ID=algorithm_id)
 
     exec_id_lookup = solution_container.execution_parameter_container.reverse_lookup['RandRoundSepLPOptDynVMPCollection']['ALGORITHM_PARAMETERS']
 
@@ -1229,7 +1257,8 @@ class AbstractPlotter(object):
                  save_plot=True,
                  overwrite_existing_files=False,
                  forbidden_scenario_ids=None,
-                 paper_mode=True
+                 paper_mode=True,
+                 filter_exec_params=None,
                  ):
         self.output_path = output_path
         self.output_filetype = output_filetype
@@ -1239,10 +1268,12 @@ class AbstractPlotter(object):
         self.execution_id = execution_id
 
         self.scenario_parameter_dict = self.scenario_solution_storage.scenario_parameter_container.scenario_parameter_dict
+        self.scenarioparameter_room = self.scenario_solution_storage.scenario_parameter_container.scenarioparameter_room
         self.all_scenario_ids = set(scenario_solution_storage.algorithm_scenario_solution_dictionary[self.algorithm_id].keys())
 
         lat_params = extract_latency_parameters(
-            scenario_solution_storage.execution_parameter_container.algorithm_parameter_list
+            scenario_solution_storage.execution_parameter_container.algorithm_parameter_list,
+            filter_exec_params
         )
         combined_dict = dict(self.scenario_solution_storage.scenario_parameter_container.scenarioparameter_room)
         combined_dict.update({'latency_approx': [lat_params]})
@@ -1325,6 +1356,8 @@ class SingleHeatmapPlotter(AbstractPlotter):
                  algorithm_id,
                  execution_id,
                  heatmap_plot_type,
+                 filter_type=None,
+                 filter_execution_params=None,
                  list_of_axes_specifications=global_heatmap_axes_specifications,
                  list_of_metric_specifications=None,
                  show_plot=False,
@@ -1335,7 +1368,7 @@ class SingleHeatmapPlotter(AbstractPlotter):
                  ):
         super(SingleHeatmapPlotter, self).__init__(output_path, output_filetype, scenario_solution_storage,
                                                    algorithm_id, execution_id, show_plot, save_plot,
-                                                   overwrite_existing_files, forbidden_scenario_ids, paper_mode)
+                                                   overwrite_existing_files, forbidden_scenario_ids, paper_mode, filter_execution_params)
         if heatmap_plot_type is None or heatmap_plot_type not in HeatmapPlotType.VALUE_RANGE:
             raise RuntimeError("heatmap_plot_type {} is not a valid input. Must be of type HeatmapPlotType.".format(heatmap_plot_type))
         self.heatmap_plot_type = heatmap_plot_type
@@ -1351,6 +1384,24 @@ class SingleHeatmapPlotter(AbstractPlotter):
                 if metric_specification.plot_type != self.heatmap_plot_type:
                     raise RuntimeError("The metric specification {} does not agree with the plot type {}.".format(metric_specification, self.heatmap_plot_type))
             self.list_of_metric_specifications = list_of_metric_specifications
+
+        self.exec_id_lookup = self.scenario_solution_storage.execution_parameter_container.reverse_lookup[algorithm_id][
+            'ALGORITHM_PARAMETERS']
+
+        self.execution_id_filter = self.scenario_solution_storage.execution_parameter_container.get_execution_ids(ALG_ID=algorithm_id)
+        if filter_type is not None and filter_type in ['no latencies', 'strict', 'flex']:
+            self.execution_id_filter = self.exec_id_lookup['latency_approximation_type'][filter_type]
+
+        if filter_execution_params is not None:
+            for key, value in filter_execution_params.iteritems():
+                try:
+                    filter_key = self.exec_id_lookup[key][value]
+                    self.execution_id_filter = self.execution_id_filter & filter_key
+                except:
+                    print "Key Error\n", self.exec_id_lookup[key]
+                    exit(1)
+
+        print "Using Exec ID filter: ", self.execution_id_filter
 
 
     def _construct_output_path_and_filename(self, metric_specification,
@@ -1383,6 +1434,10 @@ class SingleHeatmapPlotter(AbstractPlotter):
             for metric_specfication in self.list_of_metric_specifications:
                 self.plot_single_heatmap_general(metric_specfication, axes_specification, filter_specifications)
 
+
+    def _read_from_solution_dicts(self, solution_dicts, exec_id):
+        return
+
     def _lookup_solutions(self, scenario_ids):
         solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
         result = [x[self.algorithm_id][self.execution_id] for x in solution_dicts]
@@ -1402,16 +1457,32 @@ class SingleHeatmapPlotter(AbstractPlotter):
         if solution_container is None:
             solution_container = self.scenario_solution_storage
 
-        solution_dicts = [solution_container.get_solutions_by_scenario_index(x) for x in scenario_ids]
-        exec_id_lookup = solution_container.execution_parameter_container.reverse_lookup['RandRoundSepLPOptDynVMPCollection']['ALGORITHM_PARAMETERS']
+        try:
+            x_axis_exec_ids = self.exec_id_lookup[x_key][x_val]
+        except KeyError:
+            x_axis_exec_ids = solution_container.execution_parameter_container.get_execution_ids(ALG_ID=self.algorithm_id)
+            path_x_axis, _ = extract_parameter_range(self.scenario_parameter_dict, x_key)
+            x_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_x_axis, x_val)
+            scenario_ids = scenario_ids & x_axis_scenarios
 
         try:
-            exec_ids_to_consider = exec_id_lookup[x_key][x_val] & exec_id_lookup[y_key][y_val]
+            y_axis_exec_ids = self.exec_id_lookup[y_key][y_val]
         except KeyError:
-            return self._lookup_solutions(scenario_ids)
+            y_axis_exec_ids = solution_container.execution_parameter_container.get_execution_ids(ALG_ID=self.algorithm_id)
+            path_y_axis, _ = extract_parameter_range(self.scenario_parameter_dict, y_key)
+            y_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_y_axis, y_val)
+            scenario_ids = scenario_ids & y_axis_scenarios
+
+        exec_ids_to_consider = x_axis_exec_ids & y_axis_exec_ids & self.execution_id_filter
+
+        # except KeyError as e:
+        #     print "key not found, ", e
+        #     return self._lookup_solutions(scenario_ids)
 
         print "Using Exec_IDS: ", exec_ids_to_consider
+        print "Using Scenarios: ", scenario_ids
 
+        solution_dicts = [solution_container.get_solutions_by_scenario_index(x) for x in scenario_ids]
         results = [solution[self.algorithm_id][exec_id] for solution in solution_dicts for exec_id in exec_ids_to_consider]
         return results
 
@@ -1471,14 +1542,14 @@ class SingleHeatmapPlotter(AbstractPlotter):
             if path_x_axis[-1][:7] != "latency":
                 scenario_ids_matching_x_axis = lookup_scenarios_having_specific_values(spd, path_x_axis, x_val)
             else:
-                scenario_ids_matching_x_axis = set([i for i in range(len(self.scenario_solution_storage.algorithm_scenario_solution_dictionary[self.algorithm_id]))])
+                scenario_ids_matching_x_axis = self.all_scenario_ids
                 # if self.heatmap_plot_type not in [HeatmapPlotType.LatencyStudy, HeatmapPlotType.ComparisonLatencyBaseline] \
 
             for y_index, y_val in enumerate(yaxis_parameters):
                 if path_x_axis[-1][:7] != "latency":
                     scenario_ids_matching_y_axis = lookup_scenarios_having_specific_values(spd, path_y_axis, y_val)
                 else:
-                    scenario_ids_matching_y_axis = set([i for i in range(len(self.scenario_solution_storage.algorithm_scenario_solution_dictionary[self.algorithm_id]))])
+                    scenario_ids_matching_y_axis = self.all_scenario_ids
                 # if self.heatmap_plot_type not in [HeatmapPlotType.LatencyStudy, HeatmapPlotType.ComparisonLatencyBaseline] \
                 #     else set([i for i in range(len(self.scenario_solution_storage.algorithm_scenario_solution_dictionary[self.algorithm_id]))])
 
@@ -1661,6 +1732,9 @@ class LatencyStudyPlotter(SingleHeatmapPlotter):
                  with_latencies_solution_storage,
                  algorithm_id,
                  heatmap_plot_type,
+                 comparison=False,
+                 filter_type=None,
+                 filter_exec_params=None,
                  list_of_axes_specifications=global_heatmap_axes_specifications_latency_study,
                  list_of_metric_specifications=None,
                  show_plot=False,
@@ -1675,6 +1749,8 @@ class LatencyStudyPlotter(SingleHeatmapPlotter):
                                                         algorithm_id,
                                                        0,
                                                        heatmap_plot_type,
+                                                        filter_type,
+                                                        filter_exec_params,
                                                        list_of_axes_specifications,
                                                        list_of_metric_specifications,
                                                        show_plot,
@@ -1683,23 +1759,105 @@ class LatencyStudyPlotter(SingleHeatmapPlotter):
                                                        forbidden_scenario_ids,
                                                        paper_mode)
         self.baseline_solution_storage = baseline_solution_storage
-
-        if baseline_solution_storage is not None:
+        self.is_comparison = comparison
+        if baseline_solution_storage is not None and not comparison:
             self.scenarioparameter_room['latency_approx'][0]['latency_approximation_type'].append('no latencies')
+
+
 
     def _lookup_solutions_by_execution(self, scenario_ids, x_key, x_val, y_key, y_val, solution_container=None):
 
-        if x_key == "latency_approximation_type" and x_val == "no latencies" or \
-            y_key == "latency_approximation_type" and y_val == "no latencies":
+        print x_key, " : ", x_val, "   &   ", y_key , " :  ", y_val
 
-            solution_dicts = [self.baseline_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
-            result = [x[self.algorithm_id][self.execution_id] for x in solution_dicts]
-            return result
+        if self.baseline_solution_storage is not None:
+            if x_key == "latency_approximation_type":
 
-        else:
-            solution_container = self.scenario_solution_storage
+                path_y_axis, _ = extract_parameter_range(self.scenarioparameter_room, y_key)
 
-        return super(LatencyStudyPlotter, self)._lookup_solutions_by_execution(scenario_ids, x_key, x_val, y_key, y_val, solution_container)
+                if y_key[:7] != "latency":
+                    y_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_y_axis, y_val)
+                else:
+                    y_axis_scenarios = self.all_scenario_ids
+
+                scenario_ids = scenario_ids & y_axis_scenarios
+
+                solution_dicts_baseline = [self.baseline_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                if x_val == "no latencies":
+                    return [x[self.algorithm_id][self.execution_id] for x in solution_dicts_baseline]
+                elif self.is_comparison:
+                    solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) \
+                                      for x in scenario_ids]
+
+                    y_axis_exec_ids = self.exec_id_lookup.get(y_key, {}).get(y_val, self.execution_id_filter)
+                    x_axis_exec_ids = self.exec_id_lookup.get(x_key, {}).get(x_val, self.execution_id_filter)
+                    exec_ids_to_consider = y_axis_exec_ids & x_axis_exec_ids & self.execution_id_filter
+
+                    print "   Using Exec_IDS: ", exec_ids_to_consider
+                    print "   Using Scenarios: ", scenario_ids
+
+                    return [(x[self.algorithm_id][self.execution_id], y[self.algorithm_id][exec_id]) \
+                              for (x, y) in zip(solution_dicts_baseline, solution_dicts) \
+                              for exec_id in exec_ids_to_consider]
+
+            elif y_key == "latency_approximation_type":
+
+                path_x_axis, _ = extract_parameter_range(self.scenarioparameter_room, x_key)
+
+                if x_key[:7] != "latency":
+                    x_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_x_axis, x_val)
+                else:
+                    x_axis_scenarios = self.all_scenario_ids
+                scenario_ids = scenario_ids & x_axis_scenarios
+
+                solution_dicts_baseline = [self.baseline_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                if y_val == "no latencies":
+                    return [x[self.algorithm_id][self.execution_id] for x in solution_dicts_baseline]
+                elif self.is_comparison:
+
+                    solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) \
+                                      for x in scenario_ids]
+
+
+                    y_axis_exec_ids = self.exec_id_lookup.get(y_key, {}).get(y_val, self.execution_id_filter)
+                    x_axis_exec_ids = self.exec_id_lookup.get(x_key, {}).get(x_val, self.execution_id_filter)
+                    exec_ids_to_consider = y_axis_exec_ids & x_axis_exec_ids & self.execution_id_filter
+
+                    print "   Using Exec_IDS: ", exec_ids_to_consider
+                    print "   Using Scenarios: ", scenario_ids
+
+                    return [(y[self.algorithm_id][exec_id], x[self.algorithm_id][self.execution_id]) \
+                              for (x, y) in zip(solution_dicts_baseline, solution_dicts) \
+                              for exec_id in exec_ids_to_consider]
+
+                    # solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) for x in
+                    #                   scenario_ids]
+                    # result = [x[self.algorithm_id][self.execution_id] for x in solution_dicts]
+                    # return zip(result_baseline, result)
+
+            elif self.is_comparison: # no axis is type
+
+                solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                solution_dicts_baseline = [self.baseline_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                y_axis_exec_ids = self.exec_id_lookup.get(y_key, {}).get(y_val, self.execution_id_filter)
+                x_axis_exec_ids = self.exec_id_lookup.get(x_key, {}).get(x_val, self.execution_id_filter)
+                exec_ids_to_consider = y_axis_exec_ids & x_axis_exec_ids & self.execution_id_filter
+
+                print "   Using Exec_IDS: ", exec_ids_to_consider
+                print "   Using Scenarios: ", scenario_ids
+
+                return [(x[self.algorithm_id][self.execution_id], y[self.algorithm_id][exec_id]) \
+                        for (x, y) in zip(solution_dicts_baseline, solution_dicts) \
+                        for exec_id in exec_ids_to_consider]
+
+
+
+        return super(LatencyStudyPlotter, self)._lookup_solutions_by_execution(scenario_ids,
+                                                      x_key, x_val, y_key, y_val, self.scenario_solution_storage)
+
 
 
 
@@ -3022,10 +3180,11 @@ def evaluate_latency_and_baseline(dc_baseline,
                                 overwrite_existing_files=True,
                                 forbidden_scenario_ids=None,
                                 papermode=True,
-                                maxdepthfilter=2,
+                                maxdepthfilter=10,
                                 output_path="./",
                                 output_filetype="png",
-                                request_sets=None):
+                                filter_type=None,
+                                filter_exec_params=None):
     """ Main function for evaluation, creating plots and saving them in a specific directory hierarchy.
     A large variety of plots is created. For heatmaps, a generic plotter is used while for general
     comparison plots (ECDF and scatter) an own class is used. The plots that shall be generated cannot
@@ -3083,7 +3242,7 @@ def evaluate_latency_and_baseline(dc_baseline,
                                                   value not in values_to_exclude]
 
     if parameter_filter_keys is not None:
-        filter_specs = _construct_filter_specs(dc_baseline.scenario_parameter_container.scenarioparameter_room,
+        filter_specs = _construct_filter_specs(dc_with_latencies.scenario_parameter_container.scenarioparameter_room,
                                                parameter_filter_keys,
                                                maxdepth=maxdepthfilter)
     else:
@@ -3092,68 +3251,38 @@ def evaluate_latency_and_baseline(dc_baseline,
     plotters = []
     # initialize plotters for each valid vine setting...
 
-    # vine_plotter = SingleHeatmapPlotter(output_path=output_path,
-    #                                     output_filetype=output_filetype,
-    #                                     scenario_solution_storage=dc_baseline,
-    #                                     algorithm_id=algorithm_id,
-    #                                     execution_id=0,
-    #                                     heatmap_plot_type=HeatmapPlotType.LatencyStudy,
-    #                                     list_of_axes_specifications=global_heatmap_axes_specifications_latency_study,
-    #                                     show_plot=show_plot,
-    #                                     save_plot=save_plot,
-    #                                     overwrite_existing_files=overwrite_existing_files,
-    #                                     forbidden_scenario_ids=forbidden_scenario_ids,
-    #                                     paper_mode=papermode)
-
-    # plotters.append(vine_plotter)
-
-    randround_plotter = SingleHeatmapPlotter(output_path=output_path,
-                                             output_filetype=output_filetype,
-                                             scenario_solution_storage=dc_with_latencies,
+    randround_plotter = LatencyStudyPlotter(output_path=output_path,
+                                            output_filetype=output_filetype,
+                                            baseline_solution_storage=dc_baseline,
                                              algorithm_id=algorithm_id,
-                                             execution_id=0,
+                                             with_latencies_solution_storage=dc_with_latencies,
                                              heatmap_plot_type=HeatmapPlotType.LatencyStudy,
+                                            filter_type=filter_type,
+                                            filter_exec_params=filter_exec_params,
                                              list_of_axes_specifications=global_heatmap_axes_specifications_latency_study,
                                              show_plot=show_plot,
                                              save_plot=save_plot,
                                              overwrite_existing_files=overwrite_existing_files,
                                              forbidden_scenario_ids=forbidden_scenario_ids,
                                              paper_mode=papermode)
-    # plotters.append(randround_plotter)
+    plotters.append(randround_plotter)
 
     comparison_plotter = LatencyStudyPlotter(output_path=output_path,
                                                   output_filetype=output_filetype,
                                                   baseline_solution_storage=dc_baseline,
                                                   algorithm_id=algorithm_id,
+                                                  comparison=True,
                                                   with_latencies_solution_storage=dc_with_latencies,
                                                   heatmap_plot_type=HeatmapPlotType.ComparisonLatencyBaseline,
-                                                  list_of_axes_specifications=global_heatmap_axes_specifications_latency_study,
+                                                filter_type=filter_type,
+                                                filter_exec_params=filter_exec_params,
+                                                  list_of_axes_specifications=global_heatmap_axes_specifications_latency_study_comparison,
                                                   show_plot=show_plot,
                                                   save_plot=save_plot,
                                                   overwrite_existing_files=overwrite_existing_files,
                                                   forbidden_scenario_ids=forbidden_scenario_ids,
                                                   paper_mode=papermode)
     plotters.append(comparison_plotter)
-
-
-    # ecdf_plotter = ComparisonPlotter_ECDF_BoxPlot(output_path=output_path,
-    #                                               output_filetype=output_filetype,
-    #                                               vine_solution_storage=dc_baseline,
-    #                                               vine_algorithm_id=algorithm_id,
-    #                                               vine_execution_id=baseline_execution_id,
-    #                                               randround_solution_storage=dc_with_latencies,
-    #                                               randround_algorithm_id=algorithm_id,
-    #                                               randround_execution_id=with_latencies_execution_id,
-    #                                               both_randround=True,
-    #                                               vine_settings_to_consider=get_list_of_rr_settings(),
-    #                                               show_plot=show_plot,
-    #                                               save_plot=save_plot,
-    #                                               overwrite_existing_files=overwrite_existing_files,
-    #                                               forbidden_scenario_ids=forbidden_scenario_ids,
-    #                                               paper_mode=papermode,
-    #                                               request_sets=request_sets)
-    #
-    # plotters.append(ecdf_plotter)
 
 
     for filter_spec in filter_specs:
