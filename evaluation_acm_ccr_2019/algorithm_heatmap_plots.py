@@ -39,6 +39,7 @@ except ImportError:
     import pickle
 
 import matplotlib
+matplotlib.use('Agg')
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.patheffects as PathEffects
@@ -67,7 +68,9 @@ class HeatmapPlotType(object):
     RandRoundSepLPDynVMP = 1  # a plot only for RandRoundSepLPOptDynVMPCollectionResult data
     SeparationLP = 2  # a plot only for SeparationLPSolution data
     ComparisonVineRandRound = 3
-    VALUE_RANGE = [0, 1, 2, 3]
+    LatencyStudy = 4
+    ComparisonLatencyBaseline = 5
+    VALUE_RANGE = [0, 1, 2, 3, 4, 5]
 
 
 """
@@ -524,8 +527,8 @@ class HSF_RR_GeneratedMappings(AbstractHeatmapSpecificationSepLPRRFactory):
         name="Generated Mappings [k]",
         filename="lp_generated_mappings",
         vmin=0.0,
-        vmax=25,
-        colorbar_ticks=[x for x in range(0, 26, 5)],
+        vmax=2,
+        colorbar_ticks=[0, 0.5, 1, 1.5, 2],
         cmap="Greens",
         plot_type=HeatmapPlotType.RandRoundSepLPDynVMP,
         lookup_function=lambda rr_seplp_result, rr_seplp_settings_list: rr_seplp_result.lp_generated_columns / 1000.0
@@ -600,6 +603,11 @@ class AbstractHeatmapSpecificationVineVsRandRoundFactory(object):
     def get_all_hs(cls):
         return [cls.get_hs(vine_settings_list, rr_settings_list, name) for vine_settings_list, rr_settings_list, name in cls.get_specific_comparison_settings_list_with_names()]
 
+    @classmethod
+    def get_all_hs_both_rr(cls):
+        # rr_setting_list = get_list_of_rr_settings()
+        return [(cls.get_hs(get_list_of_rr_settings(), get_list_of_rr_settings(), 'with_latencies_vs_baseline'))]
+
 
 def _comparison_profit_best_relative(vine_result, rr_result, vine_settings_list, rr_settings_list):
     # print vine_result
@@ -610,11 +618,23 @@ def _comparison_profit_best_relative(vine_result, rr_result, vine_settings_list,
     best_rr = max([rr_result.profits[rr_settings].max for rr_settings in rr_settings_list])
     return 100*(best_rr - best_vine) / best_vine
 
+def _comparison_profit_best_relative_latency_study(baseline_result, with_latency_result, baseline_settings_list, with_latency_settings_list):
+    best_baseline = max([baseline_result.profits[rr_settings].max for rr_settings in baseline_settings_list])
+    best_with_latency = max([with_latency_result.profits[rr_settings].max for rr_settings in with_latency_settings_list])
+    return 100 * best_with_latency / best_baseline
+    # return (with_latency_result - baseline_result) / baseline_result
+
 
 def _comparison_profit_absolute(vine_result, rr_result, vine_settings_list, rr_settings_list):
     best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in vine_settings_list])
     best_rr = max([rr_result.profits[rr_settings].max for rr_settings in rr_settings_list])
     return best_rr - best_vine
+
+def _comparison_profit_absolute_latency_study(baseline_result, with_latency_result, baseline_settings_list, with_latency_settings_list):
+    best_baseline = max([baseline_result.profits[baseline_settings].max for baseline_settings in baseline_settings_list])
+    best_rr = max([with_latency_result.profits[with_latency_settings].max for with_latency_settings in with_latency_settings_list])
+    return best_baseline - best_rr
+    # return with_latency_result - baseline_result
 
 def _comparison_profit_qualitative_randround_5perc(vine_result, rr_result, vine_settings_list, rr_settings_list):
     best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in vine_settings_list])
@@ -665,6 +685,40 @@ class HSF_Comp_BestProfit(AbstractHeatmapSpecificationVineVsRandRoundFactory):
                                                                                                                                vine_settings_list,
                                                                                                                                rr_settings_list)
     )
+
+class HSF_Comp_BestProfitLatencyStudy(AbstractHeatmapSpecificationVineVsRandRoundFactory):
+    prototype = dict(
+        name="Relative Profit: % of Baseline",
+        filename="comparison_baseline_with_latencies",
+        vmin=0,
+        vmax=+120,
+        colorbar_ticks=[x for x in range(0, 121, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.ComparisonLatencyBaseline,
+        lookup_function=lambda baseline_result, with_latency_result, baseline_settings_list,
+                               with_latency_settings_list: _comparison_profit_best_relative_latency_study(baseline_result,
+                                                                                                          with_latency_result,
+                                                                                                          baseline_settings_list,
+                                                                                                          with_latency_settings_list)
+    )
+
+class HSF_Comp_AbsoluteLatencyStudy(AbstractHeatmapSpecificationVineVsRandRoundFactory):
+    prototype = dict(
+        name="Absolute Profit: With Latencies vs. Baseline",
+        filename="absolute_profit_comp",
+        vmin=0,
+        vmax=+100,
+        colorbar_ticks=[x for x in range(0, 101, 20)],
+        cmap="Reds",
+        plot_type=HeatmapPlotType.ComparisonLatencyBaseline,
+        lookup_function=lambda baseline_result, with_latency_result, baseline_settings_list,
+                               with_latency_settings_list: _comparison_profit_absolute_latency_study(
+            baseline_result,
+            with_latency_result,
+            baseline_settings_list,
+            with_latency_settings_list)
+    )
+
 
 class HSF_Comp_QualProfitDiff_RR(AbstractHeatmapSpecificationVineVsRandRoundFactory):
 
@@ -762,6 +816,27 @@ global_heatmap_specfications = HSF_Vine_Runtime.get_all_hs() + \
                                HSF_Comp_RelProfitToLPBound_Vine.get_all_hs() + \
                                HSF_Comp_RelProfitToLPBound_RR_minus_Vine.get_all_hs()
 
+# latency_study_specs =          HSF_RR_MeanRoundingRuntime.get_all_hs() + \
+# latency_study_specs =           HSF_RR_GeneratedMappings.get_all_hs() + \
+latency_study_specs =           HSF_RR_MeanDynVMPInitTimes.get_all_hs() + \
+                               HSF_RR_LP_Runtime.get_all_hs() + \
+                               HSF_RR_GeneratedMappings.get_all_hs() # + \
+                               # HSF_RR_Runtime.get_all_hs() + \
+                                # HSF_Comp_BestProfitLatencyStudy.get_all_hs_both_rr()
+                               # HSF_RR_LP_Runtime.get_all_hs()
+                               # HSF_RR_Runtime.get_all_hs() + \
+
+latency_study_specs_comparison =   HSF_Comp_BestProfitLatencyStudy.get_all_hs_both_rr() + \
+                                   HSF_Comp_AbsoluteLatencyStudy.get_all_hs_both_rr()
+
+#+ \
+                                   # HSF_Comp_RelProfitToLPBound_RR.get_all_hs()
+
+
+for spec in latency_study_specs:
+    spec['plot_type'] = HeatmapPlotType.LatencyStudy
+
+
 heatmap_specifications_per_type = {
     plot_type_item: [
         heatmap_specification for heatmap_specification in global_heatmap_specfications
@@ -771,6 +846,9 @@ heatmap_specifications_per_type = {
                            HeatmapPlotType.RandRoundSepLPDynVMP,
                            HeatmapPlotType.ComparisonVineRandRound]
 }
+heatmap_specifications_per_type[HeatmapPlotType.LatencyStudy] = latency_study_specs
+heatmap_specifications_per_type[HeatmapPlotType.ComparisonLatencyBaseline] = latency_study_specs_comparison
+
 
 """
 Axes specifications used for the heatmap plots.
@@ -821,6 +899,57 @@ heatmap_axes_specification_treewidth_edge_rf = dict(
     foldername="AXES_TREEWIDTH_vs_EDGE_RF"
 )
 
+heatmap_axes_specification_epsilon_nodes = dict(
+    x_axis_parameter="edge_resource_factor",
+    y_axis_parameter="node_resource_factor",
+    x_axis_title="Edge Resource Factor",
+    y_axis_title="Node Resource Factor",
+    foldername="AXES_RODE_RES_vs_EDGE_RF"
+)
+
+heatmap_axes_specification_epsilon_limit = dict(
+    x_axis_parameter="latency_approximation_factor",
+    y_axis_parameter="latency_approximation_limit",
+    x_axis_title="Epsilon",
+    y_axis_title="Limit",
+    foldername="AXES_EPSILON_LIMIT"
+)
+heatmap_axes_specification_type_epsilon = dict(
+    x_axis_parameter="latency_approximation_type",
+    y_axis_parameter="latency_approximation_factor",
+    x_axis_title="Type",
+    y_axis_title="Epsilon",
+    foldername="AXES_TYPE_EPSILON"
+)
+heatmap_axes_specification_type_limit = dict(
+    x_axis_parameter="latency_approximation_type",
+    y_axis_parameter="latency_approximation_limit",
+    x_axis_title="Type",
+    y_axis_title="Limit",
+    foldername="AXES_TYPE_LIMIT"
+)
+heatmap_axes_specification_type_edgeres = dict(
+    x_axis_parameter="latency_approximation_type",
+    y_axis_parameter="edge_resource_factor",
+    x_axis_title="Type",
+    y_axis_title="Edge Resource Factor",
+    foldername="AXES_TYPE_EDGE_RES"
+)
+heatmap_axes_specification_type_requests = dict(
+    x_axis_parameter="latency_approximation_type",
+    y_axis_parameter="number_of_requests",
+    x_axis_title="Type",
+    y_axis_title="Number of Requests",
+    foldername="AXES_TYPE_NUM_REQ"
+)
+heatmap_axes_specification_type_topology = dict(
+    x_axis_parameter="latency_approximation_type",
+    y_axis_parameter="topology",
+    x_axis_title="Type",
+    y_axis_title="Topology",
+    foldername="AXES_TYPE_TOP"
+)
+
 
 global_heatmap_axes_specifications = (
     heatmap_axes_specification_requests_edge_load,
@@ -829,6 +958,29 @@ global_heatmap_axes_specifications = (
     heatmap_axes_specification_requests_node_load,
     heatmap_axes_specification_treewidth_edge_rf,
 )
+
+
+global_heatmap_axes_specifications_latency_study = (
+    # heatmap_axes_specification_requests_edge_load,
+    # heatmap_axes_specification_resources,
+    # heatmap_axes_specification_requests_node_load,
+    # heatmap_axes_specification_epsilon_limit,
+    heatmap_axes_specification_type_epsilon,
+    heatmap_axes_specification_type_limit,
+    # heatmap_axes_specification_type_edgeres,
+    # heatmap_axes_specification_type_requests,
+    heatmap_axes_specification_type_topology,
+)
+global_heatmap_axes_specifications_latency_study_comparison = ( # has to involve 'type'
+    heatmap_axes_specification_type_epsilon,
+    heatmap_axes_specification_type_limit,
+    # heatmap_axes_specification_type_edgeres,
+    # heatmap_axes_specification_type_requests,
+    # heatmap_axes_specification_type_topology,
+    # heatmap_axes_specification_type_epsilon,
+    # heatmap_axes_specification_resources,
+)
+
 
 
 def compute_average_node_load(result_summary):
@@ -904,9 +1056,12 @@ def extract_parameter_range(scenario_parameter_space, key):
     path = None
     values = set()
     for sps in scenario_parameter_space:
-        new_path, new_values = _extract_parameter_range(
-            sps, key, min_recursion_depth=2
-        )
+        min_depth = 0 if key[:7] == "latency" else 2
+        x = _extract_parameter_range(sps, key, min_recursion_depth=min_depth)
+        if x is None:
+            print "Could not find key {}".format(key)
+            continue
+        new_path, new_values = x
         if path is None:
             path = new_path
         else:
@@ -935,6 +1090,91 @@ def _extract_parameter_range(scenario_parameter_space_dict, key, min_recursion_d
                 path, values = result
                 return [generator_name] + path, values
     return None
+
+
+def _test_():
+    sps = eval("{'substrate_generation': [{'substrates': {'TopologyZooReader': {'node_type_distribution': [1.0], 'node_types': [('universal',)], 'node_capacity': [100.0], 'edge_capacity': [100.0], 'node_cost_factor': [1.0], 'include_latencies': [True], 'topology': ['Geant2012']}}}], 'node_placement_restriction_mapping': [{'neighbors': {'NeighborhoodSearchRestrictionGenerator': {'potential_nodes_factor': [0.25]}}}], 'profit_calculation': [{'optimal': {'OptimalEmbeddingProfitCalculator': {'timelimit': [90], 'profit_factor': [1.0]}}}], 'request_generation': [{'cactus': {'CactusRequestGenerator': {'layers': [3], 'normalize': [True], 'fix_root_mapping': [False], 'number_of_requests': [20], 'probability': [1.0], 'edge_resource_factor': [0.25, 0.5], 'arbitrary_edge_orientations': [True], 'max_number_of_nodes': [16], 'max_cycles': [9999], 'node_resource_factor': [0.2, 0.4], 'iterations': [10000], 'fix_leaf_mapping': [False], 'min_number_of_nodes': [3], 'branching_distribution': [(0.15, 0.5, 0.35)]}}}]}")
+
+    # sps = eval("{'request_generation': [{'cactus': {'CactusRequestGenerator': {'layers': [3], 'normalize': [True], 'fix_root_mapping': [False], 'number_of_requests': [20, 30], 'probability': [1.0], 'edge_resource_factor': [0.25, 0.5, 0.75, 0.8], 'arbitrary_edge_orientations': [True], 'max_number_of_nodes': [16], 'max_cycles': [9999], 'node_resource_factor': [0.2, 0.4, 0.6, 0.8], 'iterations': [10000], 'fix_leaf_mapping': [False], 'min_number_of_nodes': [3], 'branching_distribution': [(0.15, 0.5, 0.35)]}}}], 'latency_approx': [{'latency_approximation_factor': [0.001, 0.1], 'latency_approximation_limit': [0.35, 0.9], 'latency_approximation_type': ['strict']}], 'profit_calculation': [{'optimal': {'OptimalEmbeddingProfitCalculator': {'timelimit': [90], 'profit_factor': [1.0]}}}], 'node_placement_restriction_mapping': [{'neighbors': {'NeighborhoodSearchRestrictionGenerator': {'potential_nodes_factor': [0.25]}}}], 'substrate_generation': [{'substrates': {'TopologyZooReader': {'node_type_distribution': [1.0], 'node_types': [('universal',)], 'node_capacity': [100.0], 'edge_capacity': [100.0], 'node_cost_factor': [1.0], 'include_latencies': [True], 'topology': ['Geant2012']}}}]}")
+
+    par_dict = eval("{'substrate_generation': {'substrates': {'all': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), 'TopologyZooReader': {'node_type_distribution': {1.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'node_types': {('universal',): set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'node_capacity': {100.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'edge_capacity': {100.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'node_cost_factor': {1.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'include_latencies': {True: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'topology': {'Geant2012': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}}}, 'request_generation': {'cactus': {'CactusRequestGenerator': {'layers': {3: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'normalize': {True: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'arbitrary_edge_orientations': {True: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'number_of_requests': {20: set([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]), 30: set([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31])}, 'probability': {1.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'edge_resource_factor': {0.25: set([0, 1, 2, 3, 4, 5, 6, 7]), 0.5: set([8, 9, 10, 11, 12, 13, 14, 15]), 0.8: set([24, 25, 26, 27, 28, 29, 30, 31]), 0.75: set([16, 17, 18, 19, 20, 21, 22, 23])}, 'fix_leaf_mapping': {False: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'max_number_of_nodes': {16: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'max_cycles': {9999: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'fix_root_mapping': {False: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'iterations': {10000: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'min_number_of_nodes': {3: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'node_resource_factor': {0.2: set([0, 1, 8, 9, 16, 17, 24, 25]), 0.6: set([4, 5, 12, 13, 20, 21, 28, 29]), 0.4: set([2, 3, 10, 11, 18, 19, 26, 27]), 0.8: set([6, 7, 14, 15, 22, 23, 30, 31])}, 'branching_distribution': {(0.15, 0.5, 0.35): set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}, 'all': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}, 'profit_calculation': {'optimal': {'all': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), 'OptimalEmbeddingProfitCalculator': {'timelimit': {90: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'profit_factor': {1.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}}}, 'node_placement_restriction_mapping': {'neighbors': {'all': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), 'NeighborhoodSearchRestrictionGenerator': {'potential_nodes_factor': {0.25: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}}}}")
+
+    spcd = eval("{'node_placement_restriction_mapping': {'neighbors': {'all': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), 'NeighborhoodSearchRestrictionGenerator': {'potential_nodes_factor': {0.25: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}}}, 'latency_approx': [{'latency_approximation_factor': {'0.1': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), '0.001': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'latency_approximation_limit': {'0.9': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), '0.35': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'latency_approximation_type': {'strict': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}], 'profit_calculation': {'optimal': {'all': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), 'OptimalEmbeddingProfitCalculator': {'timelimit': {90: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'profit_factor': {1.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}}}, 'request_generation': {'cactus': {'CactusRequestGenerator': {'layers': {3: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'normalize': {True: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'arbitrary_edge_orientations': {True: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'number_of_requests': {20: set([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]), 30: set([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31])}, 'probability': {1.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'edge_resource_factor': {0.25: set([0, 1, 2, 3, 4, 5, 6, 7]), 0.5: set([8, 9, 10, 11, 12, 13, 14, 15]), 0.8: set([24, 25, 26, 27, 28, 29, 30, 31]), 0.75: set([16, 17, 18, 19, 20, 21, 22, 23])}, 'fix_leaf_mapping': {False: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'max_number_of_nodes': {16: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'max_cycles': {9999: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'fix_root_mapping': {False: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'iterations': {10000: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'min_number_of_nodes': {3: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'node_resource_factor': {0.2: set([0, 1, 8, 9, 16, 17, 24, 25]), 0.6: set([4, 5, 12, 13, 20, 21, 28, 29]), 0.4: set([2, 3, 10, 11, 18, 19, 26, 27]), 0.8: set([6, 7, 14, 15, 22, 23, 30, 31])}, 'branching_distribution': {(0.15, 0.5, 0.35): set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}, 'all': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}, 'substrate_generation': {'substrates': {'all': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), 'TopologyZooReader': {'node_type_distribution': {1.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'node_types': {('universal',): set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'node_capacity': {100.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'edge_capacity': {100.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'node_cost_factor': {1.0: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'include_latencies': {True: set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}, 'topology': {'Geant2012': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])}}}}}")
+
+    curr = eval("{'0.1': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]), '0.001': set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31])} ")
+#
+    moo = eval("{'RandRoundSepLPOptDynVMPCollection': {'GUROBI_PARAMETERS': {'threads': {1: set([0, 1, 2, 3])}}, 'all': set([0, 1, 2, 3]), 'ALGORITHM_PARAMETERS': {'number_initial_mappings_to_compute': {50: set([0, 1, 2, 3])}, 'rounding_samples_per_lp_recomputation_mode': {(('NONE', 50), ('RECOMPUTATION_WITHOUT_SEPARATION', 2)): set([0, 1, 2, 3])}, 'rounding_order_list': {('RAND', 'STATIC_REQ_PROFIT', 'ACHIEVED_REQ_PROFIT'): set([0, 1, 2, 3])}, 'latency_approximation_factor': {0.001: set([2, 3]), 0.1: set([0, 1])}, 'lp_relative_quality': {0.001: set([0, 1, 2, 3])}, 'latency_approximation_limit': {0.35: set([1, 3]), 0.9: set([0, 2])}, 'lp_recomputation_mode_list': {('NONE', 'RECOMPUTATION_WITHOUT_SEPARATION'): set([0, 1, 2, 3])}, 'latency_approximation_type': {'strict': set([0, 1, 2, 3])}, 'number_further_mappings_to_add': {10: set([0, 1, 2, 3])}}}}")
+
+    key = 'latency_approximation_limit'
+    x = _extract_parameter_range(sps, key, min_recursion_depth=0)
+    print x
+
+_test_()
+
+
+def extract_latency_parameters(algorithm_parameter_list, filter_exec_params=None):
+
+    lat_params = dict(
+        latency_approximation_factor=set(),
+        latency_approximation_limit=set(),
+        latency_approximation_type=set()
+    )
+
+    for pars in algorithm_parameter_list:
+        algorithm_params = pars['ALGORITHM_PARAMETERS']
+        for lat_key in lat_params.keys():
+            if filter_exec_params is not None and lat_key in filter_exec_params.keys():
+                lat_params[lat_key] = [filter_exec_params[lat_key]]
+            else:
+                lat_params[lat_key].add(algorithm_params[lat_key])
+
+    for key, value in lat_params.iteritems():
+        lat_params[key] = list(value)
+
+    return lat_params
+
+def find_scenarios_for_params(solution_container, algorithm_id, lat_params):
+
+    lat_scenarios = dict()
+
+    for key, valueList in lat_params.iteritems():
+        valueDict = {}
+        for value in valueList:
+            valueDict[value] = set()
+        lat_scenarios[key] = valueDict
+
+    container = solution_container.algorithm_scenario_solution_dictionary[algorithm_id]
+    exec_param_container = solution_container.execution_parameter_container.get_execution_ids(ALG_ID=algorithm_id)
+
+    exec_id_lookup = solution_container.execution_parameter_container.reverse_lookup['RandRoundSepLPOptDynVMPCollection']['ALGORITHM_PARAMETERS']
+
+    for scenario_id in range(len(container)):
+
+        print scenario_id
+
+        # print ['latency_approximation_factor']
+        # exit()
+        #
+        #
+        # scenario_parameters = solution_container.retrieve_scenario_parameters_for_index(scenario_id)
+        # print scenario_parameters
+        #
+        # for execution_id in exec_param_container.get_execution_ids(ALG_ID=algorithm_id):
+        #
+        #     container = exec_param_container.algorithm_parameter_list[execution_id]['ALGORITHM_PARAMETERS']
+        #
+        #     print container
+        #     exit()
+        #
+        #
+        #         # if exec passt zu scenario id:
+        #
+        #         lat_scenarios[key][container[key]].add(scenario_id)
+
+    exit()
+
+    return lat_scenarios
+
 
 
 def extract_generation_parameters(scenario_parameter_dict, scenario_id):
@@ -1017,7 +1257,8 @@ class AbstractPlotter(object):
                  save_plot=True,
                  overwrite_existing_files=False,
                  forbidden_scenario_ids=None,
-                 paper_mode=True
+                 paper_mode=True,
+                 filter_exec_params=None,
                  ):
         self.output_path = output_path
         self.output_filetype = output_filetype
@@ -1029,6 +1270,19 @@ class AbstractPlotter(object):
         self.scenario_parameter_dict = self.scenario_solution_storage.scenario_parameter_container.scenario_parameter_dict
         self.scenarioparameter_room = self.scenario_solution_storage.scenario_parameter_container.scenarioparameter_room
         self.all_scenario_ids = set(scenario_solution_storage.algorithm_scenario_solution_dictionary[self.algorithm_id].keys())
+
+        lat_params = extract_latency_parameters(
+            scenario_solution_storage.execution_parameter_container.algorithm_parameter_list,
+            filter_exec_params
+        )
+        combined_dict = dict(self.scenario_solution_storage.scenario_parameter_container.scenarioparameter_room)
+        combined_dict.update({'latency_approx': [lat_params]})
+        self.scenarioparameter_room = combined_dict
+
+        # lat_scenario = find_scenarios_for_params(self.scenario_solution_storage, algorithm_id, lat_params)
+        # scen_param_dict = dict(self.scenario_solution_storage.scenario_parameter_container.scenario_parameter_dict)
+        # scen_param_dict.update({'latency_approx': lat_scenario})
+        # self.scenario_parameter_dict = scen_param_dict
 
         self.show_plot = show_plot
         self.save_plot = save_plot
@@ -1102,6 +1356,8 @@ class SingleHeatmapPlotter(AbstractPlotter):
                  algorithm_id,
                  execution_id,
                  heatmap_plot_type,
+                 filter_type=None,
+                 filter_execution_params=None,
                  list_of_axes_specifications=global_heatmap_axes_specifications,
                  list_of_metric_specifications=None,
                  show_plot=False,
@@ -1112,7 +1368,7 @@ class SingleHeatmapPlotter(AbstractPlotter):
                  ):
         super(SingleHeatmapPlotter, self).__init__(output_path, output_filetype, scenario_solution_storage,
                                                    algorithm_id, execution_id, show_plot, save_plot,
-                                                   overwrite_existing_files, forbidden_scenario_ids, paper_mode)
+                                                   overwrite_existing_files, forbidden_scenario_ids, paper_mode, filter_execution_params)
         if heatmap_plot_type is None or heatmap_plot_type not in HeatmapPlotType.VALUE_RANGE:
             raise RuntimeError("heatmap_plot_type {} is not a valid input. Must be of type HeatmapPlotType.".format(heatmap_plot_type))
         self.heatmap_plot_type = heatmap_plot_type
@@ -1128,6 +1384,24 @@ class SingleHeatmapPlotter(AbstractPlotter):
                 if metric_specification.plot_type != self.heatmap_plot_type:
                     raise RuntimeError("The metric specification {} does not agree with the plot type {}.".format(metric_specification, self.heatmap_plot_type))
             self.list_of_metric_specifications = list_of_metric_specifications
+
+        self.exec_id_lookup = self.scenario_solution_storage.execution_parameter_container.reverse_lookup[algorithm_id][
+            'ALGORITHM_PARAMETERS']
+
+        self.execution_id_filter = self.scenario_solution_storage.execution_parameter_container.get_execution_ids(ALG_ID=algorithm_id)
+        if filter_type is not None and filter_type in ['no latencies', 'strict', 'flex']:
+            self.execution_id_filter = self.exec_id_lookup['latency_approximation_type'][filter_type]
+
+        if filter_execution_params is not None:
+            for key, value in filter_execution_params.iteritems():
+                try:
+                    filter_key = self.exec_id_lookup[key][value]
+                    self.execution_id_filter = self.execution_id_filter & filter_key
+                except:
+                    print "Key Error\n", self.exec_id_lookup[key]
+                    exit(1)
+
+        print "Using Exec ID filter: ", self.execution_id_filter
 
 
     def _construct_output_path_and_filename(self, metric_specification,
@@ -1160,6 +1434,10 @@ class SingleHeatmapPlotter(AbstractPlotter):
             for metric_specfication in self.list_of_metric_specifications:
                 self.plot_single_heatmap_general(metric_specfication, axes_specification, filter_specifications)
 
+
+    def _read_from_solution_dicts(self, solution_dicts, exec_id):
+        return
+
     def _lookup_solutions(self, scenario_ids):
         solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
         result = [x[self.algorithm_id][self.execution_id] for x in solution_dicts]
@@ -1173,6 +1451,41 @@ class SingleHeatmapPlotter(AbstractPlotter):
         #     if result and self.algorithm_sub_parameter not in result[0].profits:
         #         return None
         return result
+
+    def _lookup_solutions_by_execution(self, scenario_ids, x_key, x_val, y_key, y_val, solution_container=None):
+
+        if solution_container is None:
+            solution_container = self.scenario_solution_storage
+
+        try:
+            x_axis_exec_ids = self.exec_id_lookup[x_key][x_val]
+        except KeyError:
+            x_axis_exec_ids = solution_container.execution_parameter_container.get_execution_ids(ALG_ID=self.algorithm_id)
+            path_x_axis, _ = extract_parameter_range(self.scenario_parameter_dict, x_key)
+            x_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_x_axis, x_val)
+            scenario_ids = scenario_ids & x_axis_scenarios
+
+        try:
+            y_axis_exec_ids = self.exec_id_lookup[y_key][y_val]
+        except KeyError:
+            y_axis_exec_ids = solution_container.execution_parameter_container.get_execution_ids(ALG_ID=self.algorithm_id)
+            path_y_axis, _ = extract_parameter_range(self.scenario_parameter_dict, y_key)
+            y_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_y_axis, y_val)
+            scenario_ids = scenario_ids & y_axis_scenarios
+
+        exec_ids_to_consider = x_axis_exec_ids & y_axis_exec_ids & self.execution_id_filter
+
+        # except KeyError as e:
+        #     print "key not found, ", e
+        #     return self._lookup_solutions(scenario_ids)
+
+        print "Using Exec_IDS: ", exec_ids_to_consider
+        print "Using Scenarios: ", scenario_ids
+
+        solution_dicts = [solution_container.get_solutions_by_scenario_index(x) for x in scenario_ids]
+        results = [solution[self.algorithm_id][exec_id] for solution in solution_dicts for exec_id in exec_ids_to_consider]
+        return results
+
 
     def plot_single_heatmap_general(self,
                                     heatmap_metric_specification,
@@ -1225,16 +1538,30 @@ class SingleHeatmapPlotter(AbstractPlotter):
 
         for x_index, x_val in enumerate(xaxis_parameters):
             # all scenario indices which has x_val as xaxis parameter (e.g. node_resource_factor = 0.5
-            scenario_ids_matching_x_axis = lookup_scenarios_having_specific_values(spd, path_x_axis, x_val)
+
+            if path_x_axis[-1][:7] != "latency":
+                scenario_ids_matching_x_axis = lookup_scenarios_having_specific_values(spd, path_x_axis, x_val)
+            else:
+                scenario_ids_matching_x_axis = self.all_scenario_ids
+                # if self.heatmap_plot_type not in [HeatmapPlotType.LatencyStudy, HeatmapPlotType.ComparisonLatencyBaseline] \
+
             for y_index, y_val in enumerate(yaxis_parameters):
-                scenario_ids_matching_y_axis = lookup_scenarios_having_specific_values(spd, path_y_axis, y_val)
+                if path_x_axis[-1][:7] != "latency":
+                    scenario_ids_matching_y_axis = lookup_scenarios_having_specific_values(spd, path_y_axis, y_val)
+                else:
+                    scenario_ids_matching_y_axis = self.all_scenario_ids
+                # if self.heatmap_plot_type not in [HeatmapPlotType.LatencyStudy, HeatmapPlotType.ComparisonLatencyBaseline] \
+                #     else set([i for i in range(len(self.scenario_solution_storage.algorithm_scenario_solution_dictionary[self.algorithm_id]))])
 
                 filter_indices = self._obtain_scenarios_based_on_filters(filter_specifications)
                 scenario_ids_to_consider = (scenario_ids_matching_x_axis &
                                             scenario_ids_matching_y_axis &
                                             filter_indices) - self.forbidden_scenario_ids
 
-                solutions = self._lookup_solutions(scenario_ids_to_consider)
+                if self.heatmap_plot_type in [HeatmapPlotType.LatencyStudy, HeatmapPlotType.ComparisonLatencyBaseline]:
+                    solutions = self._lookup_solutions_by_execution(scenario_ids_to_consider, heatmap_axes_specification['x_axis_parameter'], x_val, heatmap_axes_specification['y_axis_parameter'], y_val)
+                else:
+                    solutions = self._lookup_solutions(scenario_ids_to_consider)
 
                 # for solution in solutions:
                 #     print solution
@@ -1388,13 +1715,150 @@ class ComparisonHeatmapPlotter(SingleHeatmapPlotter):
         self.randround_algorithm_id = randround_algorithm_id
         self.randround_execution_id = randround_execution_id
 
-        if heatmap_plot_type != HeatmapPlotType.ComparisonVineRandRound:
+        if heatmap_plot_type != HeatmapPlotType.ComparisonVineRandRound and heatmap_plot_type != HeatmapPlotType.ComparisonLatencyBaseline:
             raise RuntimeError("Only comparison heatmap plots are allowed")
 
     def _lookup_solutions(self, scenario_ids):
         return [(self.scenario_solution_storage.get_solutions_by_scenario_index(x)[self.algorithm_id][self.execution_id],
                  self.randround_scenario_solution_storage.get_solutions_by_scenario_index(x)[self.randround_algorithm_id][self.randround_execution_id])
                 for x in scenario_ids]
+
+class LatencyStudyPlotter(SingleHeatmapPlotter):
+
+    def __init__(self,
+                 output_path,
+                 output_filetype,
+                 baseline_solution_storage,
+                 with_latencies_solution_storage,
+                 algorithm_id,
+                 heatmap_plot_type,
+                 comparison=False,
+                 filter_type=None,
+                 filter_exec_params=None,
+                 list_of_axes_specifications=global_heatmap_axes_specifications_latency_study,
+                 list_of_metric_specifications=None,
+                 show_plot=False,
+                 save_plot=True,
+                 overwrite_existing_files=False,
+                 forbidden_scenario_ids=None,
+                 paper_mode=True
+                 ):
+        super(LatencyStudyPlotter, self).__init__(output_path,
+                                                       output_filetype,
+                                                        with_latencies_solution_storage,
+                                                        algorithm_id,
+                                                       0,
+                                                       heatmap_plot_type,
+                                                        filter_type,
+                                                        filter_exec_params,
+                                                       list_of_axes_specifications,
+                                                       list_of_metric_specifications,
+                                                       show_plot,
+                                                       save_plot,
+                                                       overwrite_existing_files,
+                                                       forbidden_scenario_ids,
+                                                       paper_mode)
+        self.baseline_solution_storage = baseline_solution_storage
+        self.is_comparison = comparison
+        if baseline_solution_storage is not None and not comparison:
+            self.scenarioparameter_room['latency_approx'][0]['latency_approximation_type'].append('no latencies')
+
+
+
+    def _lookup_solutions_by_execution(self, scenario_ids, x_key, x_val, y_key, y_val, solution_container=None):
+
+        print x_key, " : ", x_val, "   &   ", y_key , " :  ", y_val
+
+        if self.baseline_solution_storage is not None:
+            if x_key == "latency_approximation_type":
+
+                path_y_axis, _ = extract_parameter_range(self.scenarioparameter_room, y_key)
+
+                if y_key[:7] != "latency":
+                    y_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_y_axis, y_val)
+                else:
+                    y_axis_scenarios = self.all_scenario_ids
+
+                scenario_ids = scenario_ids & y_axis_scenarios
+
+                solution_dicts_baseline = [self.baseline_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                if x_val == "no latencies":
+                    return [x[self.algorithm_id][self.execution_id] for x in solution_dicts_baseline]
+                elif self.is_comparison:
+                    solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) \
+                                      for x in scenario_ids]
+
+                    y_axis_exec_ids = self.exec_id_lookup.get(y_key, {}).get(y_val, self.execution_id_filter)
+                    x_axis_exec_ids = self.exec_id_lookup.get(x_key, {}).get(x_val, self.execution_id_filter)
+                    exec_ids_to_consider = y_axis_exec_ids & x_axis_exec_ids & self.execution_id_filter
+
+                    print "   Using Exec_IDS: ", exec_ids_to_consider
+                    print "   Using Scenarios: ", scenario_ids
+
+                    return [(x[self.algorithm_id][self.execution_id], y[self.algorithm_id][exec_id]) \
+                              for (x, y) in zip(solution_dicts_baseline, solution_dicts) \
+                              for exec_id in exec_ids_to_consider]
+
+            elif y_key == "latency_approximation_type":
+
+                path_x_axis, _ = extract_parameter_range(self.scenarioparameter_room, x_key)
+
+                if x_key[:7] != "latency":
+                    x_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_x_axis, x_val)
+                else:
+                    x_axis_scenarios = self.all_scenario_ids
+                scenario_ids = scenario_ids & x_axis_scenarios
+
+                solution_dicts_baseline = [self.baseline_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                if y_val == "no latencies":
+                    return [x[self.algorithm_id][self.execution_id] for x in solution_dicts_baseline]
+                elif self.is_comparison:
+
+                    solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) \
+                                      for x in scenario_ids]
+
+
+                    y_axis_exec_ids = self.exec_id_lookup.get(y_key, {}).get(y_val, self.execution_id_filter)
+                    x_axis_exec_ids = self.exec_id_lookup.get(x_key, {}).get(x_val, self.execution_id_filter)
+                    exec_ids_to_consider = y_axis_exec_ids & x_axis_exec_ids & self.execution_id_filter
+
+                    print "   Using Exec_IDS: ", exec_ids_to_consider
+                    print "   Using Scenarios: ", scenario_ids
+
+                    return [(y[self.algorithm_id][exec_id], x[self.algorithm_id][self.execution_id]) \
+                              for (x, y) in zip(solution_dicts_baseline, solution_dicts) \
+                              for exec_id in exec_ids_to_consider]
+
+                    # solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) for x in
+                    #                   scenario_ids]
+                    # result = [x[self.algorithm_id][self.execution_id] for x in solution_dicts]
+                    # return zip(result_baseline, result)
+
+            elif self.is_comparison: # no axis is type
+
+                solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                solution_dicts_baseline = [self.baseline_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                y_axis_exec_ids = self.exec_id_lookup.get(y_key, {}).get(y_val, self.execution_id_filter)
+                x_axis_exec_ids = self.exec_id_lookup.get(x_key, {}).get(x_val, self.execution_id_filter)
+                exec_ids_to_consider = y_axis_exec_ids & x_axis_exec_ids & self.execution_id_filter
+
+                print "   Using Exec_IDS: ", exec_ids_to_consider
+                print "   Using Scenarios: ", scenario_ids
+
+                return [(x[self.algorithm_id][self.execution_id], y[self.algorithm_id][exec_id]) \
+                        for (x, y) in zip(solution_dicts_baseline, solution_dicts) \
+                        for exec_id in exec_ids_to_consider]
+
+
+
+        return super(LatencyStudyPlotter, self)._lookup_solutions_by_execution(scenario_ids,
+                                                      x_key, x_val, y_key, y_val, self.scenario_solution_storage)
+
+
 
 
 class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
@@ -1408,6 +1872,7 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
                  randround_solution_storage,
                  randround_algorithm_id,
                  randround_execution_id,
+                 both_randround=False,
                  show_plot=False,
                  save_plot=True,
                  overwrite_existing_files=False,
@@ -1423,6 +1888,7 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
         self.randround_solution_storage = randround_solution_storage
         self.randround_algorithm_id = randround_algorithm_id
         self.randround_execution_id = randround_execution_id
+        self.both_randround = both_randround
 
         filter_path_number_of_requests, list_number_of_requests = extract_parameter_range(self.scenarioparameter_room,
                                                                                           "number_of_requests")
@@ -1452,14 +1918,21 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
 
 
     def _lookup_vine_solution(self, scenario_id):
-        return self.scenario_solution_storage.get_solutions_by_scenario_index(scenario_id)[self.algorithm_id][self.execution_id]
+        if self.both_randround:
+            return self.scenario_solution_storage.get_solutions_by_scenario_index(scenario_id)[self.randround_algorithm_id][
+                self.randround_execution_id]
+        else:
+            return self.scenario_solution_storage.get_solutions_by_scenario_index(scenario_id)[self.algorithm_id][self.execution_id]
 
     def _lookup_randround_solution(self, scenario_id):
         return self.randround_solution_storage.get_solutions_by_scenario_index(scenario_id)[self.randround_algorithm_id][self.randround_execution_id]
 
     def _compute_profit_best_rr_div_best_vine(self, vine_result, rr_result):
         best_rr = max([rr_result.profits[rr_settings].max for rr_settings in self.rr_settings_to_consider])
-        best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in self.vine_settings_to_consider])
+        if self.both_randround:
+            best_vine = max([vine_result.profits[vine_settings].max for vine_settings in self.vine_settings_to_consider])
+        else:
+            best_vine = max([vine_result[vine_settings][0].profit.max for vine_settings in self.vine_settings_to_consider])
         return best_rr / best_vine
 
     def compute_relative_profits_arrays(self, list_of_scenarios):
@@ -1537,6 +2010,8 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
 
                 result_slice = np.zeros(0)
 
+                print " - - - - -\n", result, "\n", number_of_requests_list, "\n- - - - - ----------"
+
                 for number_of_requests in number_of_requests_list:
                     result_slice = np.concatenate((result_slice, result[erf][number_of_requests]))
 
@@ -1564,6 +2039,7 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
 
                 #ax.set_title("#Requests: {} & {}".format(number_of_requests_list[0],number_of_requests_list[1]), fontsize=15)
                 props = dict(boxstyle='round', facecolor='white', alpha=0.5)
+                print number_of_requests_list
                 ax.text(25, 95, "#req.:\n{} & {}".format(number_of_requests_list[0],number_of_requests_list[1]), fontsize=13, bbox=props, verticalalignment="top")
                 #ax.set_ylabel("ECDF [%]", fontsize=14)
                 ax.grid(True, which="both", linestyle=":")
@@ -1802,18 +2278,31 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
             {rr_settings: {scenario_id: None for scenario_id in scenario_ids} for rr_settings in rr_settings_list})
 
         for scenario_id in scenario_ids:
-            best_vine = max([self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max for vine_settings in
-                             vine_settings_list])
+            if self.both_randround:
+                best_vine = max([self._lookup_vine_solution(scenario_id).profits[rr_settings].max for rr_settings in
+                           rr_settings_list])
+            else:
+                best_vine = max([self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max for vine_settings in
+                                 vine_settings_list])
             best_rr = max([self._lookup_randround_solution(scenario_id).profits[rr_settings].max for rr_settings in
                            rr_settings_list])
             best_bound = self._lookup_randround_solution(scenario_id).lp_profit
             best_vine = best_bound
             best_rr = best_bound
 
-            for vine_settings in vine_settings_list:
-                plot_data_raw[vine_settings][scenario_id] = (
-                    100.0 * self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max / best_vine,
-                    100.0 * self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.mean / best_vine
+
+            if self.both_randround:
+                for rr_settings in rr_settings_list:
+                    plot_data_raw[rr_settings][scenario_id] = (
+                        100.0 * self._lookup_vine_solution(scenario_id).profits[rr_settings].max / best_rr,
+                        100.0 * self._lookup_vine_solution(scenario_id).profits[rr_settings].mean / best_rr
+                    )
+
+            else:
+                for vine_settings in vine_settings_list:
+                    plot_data_raw[vine_settings][scenario_id] = (
+                        100.0 * self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.max / best_vine,
+                        100.0 * self._lookup_vine_solution(scenario_id)[vine_settings][0].profit.mean / best_vine
                 )
             for rr_settings in rr_settings_list:
                 plot_data_raw[rr_settings][scenario_id] = (
@@ -1858,25 +2347,67 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
 
         colors = []
 
+        rr_no_recomp = [(treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.RANDOM),
+                        (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
+                        (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
+        rr_recomp = [(treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
+                      treewidth_model.RoundingOrder.RANDOM),
+                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
+                      treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
+                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
+                      treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
+
+        ordered_rr_settings = [rr_no_recomp, rr_recomp]
+
         # vine!
-        for i in range(2):
-            # i == 0: det
-            # i == 1: rand
-            for vine_settings in ordered_vine_settings[i]:
-                if i == 0:
-                    current_values = [plot_data_raw[vine_settings][scenario_id][0] for scenario_id in scenario_ids]
-                    values.append(current_values)
-                    positions.append(current_pos)
-                    if vine_settings.lp_objective == vine.ViNELPObjective.ViNE_LB_DEF:
-                        minor_labels.append("L")
+        if not self.both_randround:
+            for i in range(2):
+                # i == 0: det
+                # i == 1: rand
+                for vine_settings in ordered_vine_settings[i]:
+                    if i == 0:
+                        current_values = [plot_data_raw[vine_settings][scenario_id][0] for scenario_id in scenario_ids]
+                        values.append(current_values)
+                        positions.append(current_pos)
+                        if vine_settings.lp_objective == vine.ViNELPObjective.ViNE_LB_DEF:
+                            minor_labels.append("L")
+                        else:
+                            minor_labels.append("C")
+                        minor_label_locations.append(current_pos)
+                        current_pos += 1.75
+                        colors.append(color_def)
                     else:
-                        minor_labels.append("C")
-                    minor_label_locations.append(current_pos)
-                    current_pos += 1.75
-                    colors.append(color_def)
+                        for j in range(2):
+                            current_values = [plot_data_raw[vine_settings][scenario_id][j] for scenario_id in scenario_ids]
+                            values.append(current_values)
+                            positions.append(current_pos)
+                            current_pos += 0.75
+                            if j == 0:
+                                colors.append(color_best)
+                            else:
+                                colors.append(color_mean)
+
+                        if vine_settings.lp_objective == vine.ViNELPObjective.ViNE_LB_DEF:
+                            minor_labels.append("L")
+                        else:
+                            minor_labels.append("C")
+                        minor_label_locations.append((positions[-1] + positions[-2]) / 2.0)
+                        current_pos += 0.5
+                if i == 0:
+                    major_label_locations.append(np.mean(positions))
+                    major_labels.append("Det.")
+                    current_pos += 0.75
                 else:
+                    major_label_locations.append((positions[2] + positions[-1]) / 2.0)
+                    major_labels.append("Rand.")
+
+        else:
+            for i in range(2):
+                # i == 0: no_recomp
+                # i == 1: recomp!
+                for rr_settings in ordered_rr_settings[i]:
                     for j in range(2):
-                        current_values = [plot_data_raw[vine_settings][scenario_id][j] for scenario_id in scenario_ids]
+                        current_values = [plot_data_raw[rr_settings][scenario_id][j] for scenario_id in scenario_ids]
                         values.append(current_values)
                         positions.append(current_pos)
                         current_pos += 0.75
@@ -1885,19 +2416,25 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
                         else:
                             colors.append(color_mean)
 
-                    if vine_settings.lp_objective == vine.ViNELPObjective.ViNE_LB_DEF:
-                        minor_labels.append("L")
+                    if rr_settings[1] == treewidth_model.RoundingOrder.RANDOM:
+                        minor_labels.append("R")
+                    elif rr_settings[1] == treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT:
+                        minor_labels.append("A")
+                    elif rr_settings[1] == treewidth_model.RoundingOrder.STATIC_REQ_PROFIT:
+                        minor_labels.append("S")
                     else:
-                        minor_labels.append("C")
+                        raise ValueError()
                     minor_label_locations.append((positions[-1] + positions[-2]) / 2.0)
                     current_pos += 0.5
-            if i == 0:
-                major_label_locations.append(np.mean(positions))
-                major_labels.append("Det.")
-                current_pos += 0.75
-            else:
-                major_label_locations.append((positions[2] + positions[-1]) / 2.0)
-                major_labels.append("Rand.")
+
+                if i == 0:
+                    major_label_locations.append(np.mean(positions))
+                    major_labels.append("No Recomp.")
+                    current_pos += 1
+                else:
+                    major_label_locations.append((positions[6] + positions[-1]) / 2.0)
+                    major_labels.append("Recomp.")
+
 
         # bplots = []
         #
@@ -1961,18 +2498,6 @@ class ComparisonPlotter_ECDF_BoxPlot(AbstractPlotter):
         # RAND ROUND!
 
         ax = axs[1]
-
-        rr_no_recomp = [(treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.RANDOM),
-                        (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
-                        (treewidth_model.LPRecomputationMode.NONE, treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
-        rr_recomp = [(treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
-                      treewidth_model.RoundingOrder.RANDOM),
-                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
-                      treewidth_model.RoundingOrder.STATIC_REQ_PROFIT),
-                     (treewidth_model.LPRecomputationMode.RECOMPUTATION_WITHOUT_SEPARATION,
-                      treewidth_model.RoundingOrder.ACHIEVED_REQ_PROFIT)]
-
-        ordered_rr_settings = [rr_no_recomp, rr_recomp]
 
         positions = []
         values = []
@@ -2638,6 +3163,126 @@ def evaluate_vine_and_randround(dc_vine,
                                                   request_sets=request_sets)
 
     plotters.append(ecdf_plotter)
+
+
+    for filter_spec in filter_specs:
+        for plotter in plotters:
+            plotter.plot_figure(filter_spec)
+
+
+def evaluate_latency_and_baseline(dc_baseline,
+                                dc_with_latencies,
+                                algorithm_id,
+                                exclude_generation_parameters=None,
+                                parameter_filter_keys=None,
+                                show_plot=False,
+                                save_plot=True,
+                                overwrite_existing_files=True,
+                                forbidden_scenario_ids=None,
+                                papermode=True,
+                                maxdepthfilter=10,
+                                output_path="./",
+                                output_filetype="png",
+                                filter_type=None,
+                                filter_exec_params=None):
+    """ Main function for evaluation, creating plots and saving them in a specific directory hierarchy.
+    A large variety of plots is created. For heatmaps, a generic plotter is used while for general
+    comparison plots (ECDF and scatter) an own class is used. The plots that shall be generated cannot
+    be controlled at the moment but the respective plotters can be easily adjusted.
+
+    :param heatmap_plot_type:
+    :param dc_vine: unpickled datacontainer of vine experiments
+    :param vine_algorithm_id: algorithm id of the vine algorithm
+    :param vine_execution_id: execution config (numeric) of the vine algorithm execution
+    :param dc_randround_seplp_dynvmp: unpickled datacontainer of randomized rounding experiments
+    :param randround_seplp_execution_id: execution config (numeric) of the randround algorithm execution
+    :param exclude_generation_parameters:   specific generation parameters that shall be excluded from the evaluation.
+                                            These won't show in the plots and will also not be shown on axis labels etc.
+    :param parameter_filter_keys:   name of parameters according to which the results shall be filtered
+    :param show_plot:               Boolean: shall plots be shown
+    :param save_plot:               Boolean: shall the plots be saved
+    :param overwrite_existing_files:   shall existing files be overwritten?
+    :param forbidden_scenario_ids:     list / set of scenario ids that shall not be considered in the evaluation
+    :param papermode:                  nicely layouted plots (papermode) or rather additional information?
+    :param maxdepthfilter:             length of filter permutations that shall be considered
+    :param output_path:                path to which the results shall be written
+    :param output_filetype:            filetype supported by matplotlib to export figures
+    :return: None
+    """
+
+    if forbidden_scenario_ids is None:
+        forbidden_scenario_ids = set()
+
+    if exclude_generation_parameters is not None:
+        for key, values_to_exclude in exclude_generation_parameters.iteritems():
+            parameter_filter_path, parameter_values = extract_parameter_range(
+                dc_baseline.scenario_parameter_container.scenarioparameter_room, key)
+
+            parameter_dicts_vine = lookup_scenario_parameter_room_dicts_on_path(
+                dc_baseline.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
+            parameter_dicts_randround = lookup_scenario_parameter_room_dicts_on_path(
+                dc_with_latencies.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
+
+            for value_to_exclude in values_to_exclude:
+
+                if value_to_exclude not in parameter_values:
+                    raise RuntimeError("The value {} is not contained in the list of parameter values {} for key {}".format(
+                        value_to_exclude, parameter_values, key
+                    ))
+
+                # add respective scenario ids to the set of forbidden scenario ids
+                forbidden_scenario_ids.update(set(lookup_scenarios_having_specific_values(
+                    dc_baseline.scenario_parameter_container.scenario_parameter_dict, parameter_filter_path, value_to_exclude)))
+
+            # remove the respective values from the scenario parameter room such that these are not considered when
+            # constructing e.g. axes
+            parameter_dicts_vine[-1][key] = [value for value in parameter_dicts_vine[-1][key] if
+                                                 value not in values_to_exclude]
+            parameter_dicts_randround[-1][key] = [value for value in parameter_dicts_randround[-1][key] if
+                                                  value not in values_to_exclude]
+
+    if parameter_filter_keys is not None:
+        filter_specs = _construct_filter_specs(dc_with_latencies.scenario_parameter_container.scenarioparameter_room,
+                                               parameter_filter_keys,
+                                               maxdepth=maxdepthfilter)
+    else:
+        filter_specs = [None]
+
+    plotters = []
+    # initialize plotters for each valid vine setting...
+
+    randround_plotter = LatencyStudyPlotter(output_path=output_path,
+                                            output_filetype=output_filetype,
+                                            baseline_solution_storage=dc_baseline,
+                                             algorithm_id=algorithm_id,
+                                             with_latencies_solution_storage=dc_with_latencies,
+                                             heatmap_plot_type=HeatmapPlotType.LatencyStudy,
+                                            filter_type=filter_type,
+                                            filter_exec_params=filter_exec_params,
+                                             list_of_axes_specifications=global_heatmap_axes_specifications_latency_study,
+                                             show_plot=show_plot,
+                                             save_plot=save_plot,
+                                             overwrite_existing_files=overwrite_existing_files,
+                                             forbidden_scenario_ids=forbidden_scenario_ids,
+                                             paper_mode=papermode)
+    plotters.append(randround_plotter)
+
+    comparison_plotter = LatencyStudyPlotter(output_path=output_path,
+                                                  output_filetype=output_filetype,
+                                                  baseline_solution_storage=dc_baseline,
+                                                  algorithm_id=algorithm_id,
+                                                  comparison=True,
+                                                  with_latencies_solution_storage=dc_with_latencies,
+                                                  heatmap_plot_type=HeatmapPlotType.ComparisonLatencyBaseline,
+                                                filter_type=filter_type,
+                                                filter_exec_params=filter_exec_params,
+                                                  list_of_axes_specifications=global_heatmap_axes_specifications_latency_study_comparison,
+                                                  show_plot=show_plot,
+                                                  save_plot=save_plot,
+                                                  overwrite_existing_files=overwrite_existing_files,
+                                                  forbidden_scenario_ids=forbidden_scenario_ids,
+                                                  paper_mode=papermode)
+    plotters.append(comparison_plotter)
 
 
     for filter_spec in filter_specs:

@@ -41,6 +41,7 @@ import numpy as np
 
 from alib import solutions, util
 from vnep_approx import vine, treewidth_model
+from evaluation_acm_ccr_2019.algorithm_heatmap_plots import extract_latency_parameters
 
 try:
     import cPickle as pickle
@@ -58,6 +59,8 @@ AXIS_LABEL_FONTSIZE = 16
 LEGEND_TITLE_FONTSIZE = 16
 LEGEND_LABEL_FONTSIZE = 15
 AXIS_TICKLABEL_FONTSIZE = 14.8
+
+FIGSIZE = (6, 3.5)
 
 logger = util.get_logger(__name__, make_file=False, propagate=True)
 
@@ -271,6 +274,18 @@ boxplot_axes_specification_requests_num_req = dict(
     x_axis_title_short="#req.",
 )
 
+boxplot_axes_specification_requests_type = dict(
+    x_axis_parameter="latency_approximation_type",
+    x_axis_title="Type",
+    x_axis_title_short="type",
+)
+
+boxplot_axes_specification_limit = dict(
+    x_axis_parameter="latency_approximation_limit",
+    x_axis_title="Limit",
+    x_axis_title_short="limit",
+)
+
 boxplot_outer_axes_specifications = (
     boxplot_axes_specification_requests_treewidth,
     # boxplot_axes_specification_resources,
@@ -281,6 +296,19 @@ boxplot_inner_axes_specifications = (
     # boxplot_axes_specification_requests_treewidth,
     # boxplot_axes_specification_resources,
     boxplot_axes_specification_requests_num_req,
+)
+
+boxplot_outer_axes_specifications_lat = (
+    # boxplot_axes_specification_resources,
+    # boxplot_axes_specification_requests_num_req,
+    boxplot_axes_specification_limit,
+)
+
+boxplot_inner_axes_specifications_lat = (
+    # boxplot_axes_specification_requests_treewidth,
+    # boxplot_axes_specification_resources,
+    # boxplot_axes_specification_requests_num_req,
+    boxplot_axes_specification_requests_type,
 )
 
 
@@ -299,9 +327,14 @@ def extract_parameter_range(scenario_parameter_space, key):
     path = None
     values = set()
     for sps in scenario_parameter_space:
-        new_path, new_values = _extract_parameter_range(
-            sps, key, min_recursion_depth=2
+        min_depth = 0 if key[:7] == "latency" else 2
+        x = _extract_parameter_range(
+            sps, key, min_recursion_depth=min_depth
         )
+        if x is None:
+            print "key not found: ", key
+            continue
+        new_path, new_values = x
         if path is None:
             path = new_path
         else:
@@ -438,11 +471,12 @@ class AbstractPlotter(object):
                  scenario_solution_storage,
                  algorithm_id,
                  execution_id,
+                 filter_execution_params=None,
                  show_plot=False,
                  save_plot=True,
                  overwrite_existing_files=False,
                  forbidden_scenario_ids=None,
-                 paper_mode=True
+                 paper_mode=True,
                  ):
         self.output_path = output_path
         self.output_filetype = output_filetype
@@ -454,6 +488,19 @@ class AbstractPlotter(object):
         self.scenario_parameter_dict = self.scenario_solution_storage.scenario_parameter_container.scenario_parameter_dict
         self.scenarioparameter_room = self.scenario_solution_storage.scenario_parameter_container.scenarioparameter_room
         self.all_scenario_ids = set(scenario_solution_storage.algorithm_scenario_solution_dictionary[self.algorithm_id].keys())
+
+        lat_params = extract_latency_parameters(
+            scenario_solution_storage.execution_parameter_container.algorithm_parameter_list,
+            filter_execution_params
+        )
+        combined_dict = dict(self.scenario_solution_storage.scenario_parameter_container.scenarioparameter_room)
+        combined_dict.update({'latency_approx': [lat_params]})
+        self.scenarioparameter_room = combined_dict
+
+        # lat_scenario = find_scenarios_for_params(self.scenario_solution_storage, algorithm_id, lat_params)
+        # scen_param_dict = dict(self.scenario_solution_storage.scenario_parameter_container.scenario_parameter_dict)
+        # scen_param_dict.update({'latency_approx': lat_scenario})
+        # self.scenario_parameter_dict = scen_param_dict
 
         self.show_plot = show_plot
         self.save_plot = save_plot
@@ -524,6 +571,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                  scenario_solution_storage,
                  algorithm_id,
                  execution_id,
+                 filter_execution_params=None,
                  metric_specifications=global_metric_specifications,
                  list_of_outer_axes_specifications=boxplot_outer_axes_specifications,
                  list_of_inner_axes_specifications=boxplot_inner_axes_specifications,
@@ -535,7 +583,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                  paper_mode=True
                  ):
         super(RuntimeBoxplotPlotter, self).__init__(output_path, output_filetype, scenario_solution_storage,
-                                                    algorithm_id, execution_id, show_plot, save_plot,
+                                                    algorithm_id, execution_id, filter_execution_params, show_plot, save_plot,
                                                     overwrite_existing_files, forbidden_scenario_ids, paper_mode)
         if not metric_specifications:
             raise ValueError("Requires metric specifications")
@@ -587,6 +635,42 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
         result = [x[self.algorithm_id][self.execution_id] for x in solution_dicts]
         return result
 
+
+    def _lookup_solutions_by_execution(self, scenario_ids, x_key, x_val, y_key, y_val, solution_container=None):
+
+        if solution_container is None:
+            solution_container = self.scenario_solution_storage
+
+        print "here"
+
+        exec_id_lookup = solution_container.execution_parameter_container.reverse_lookup['RandRoundSepLPOptDynVMPCollection']['ALGORITHM_PARAMETERS']
+
+        try:
+            x_axis_exec_ids = exec_id_lookup[x_key][x_val]
+        except KeyError:
+            x_axis_exec_ids = solution_container.execution_parameter_container.get_execution_ids(ALG_ID=self.algorithm_id)
+            path_x_axis, _ = extract_parameter_range(self.scenario_parameter_dict, x_key)
+            x_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_x_axis, x_val)
+            scenario_ids = scenario_ids & x_axis_scenarios
+
+        try:
+            y_axis_exec_ids = exec_id_lookup[y_key][y_val]
+        except KeyError:
+            y_axis_exec_ids = solution_container.execution_parameter_container.get_execution_ids(ALG_ID=self.algorithm_id)
+            path_y_axis, _ = extract_parameter_range(self.scenario_parameter_dict, y_key)
+            y_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_y_axis, y_val)
+            scenario_ids = scenario_ids & y_axis_scenarios
+
+        exec_ids_to_consider = x_axis_exec_ids & y_axis_exec_ids
+
+        print "Using Exec_IDS: ", exec_ids_to_consider
+        print "Using Scenarios: ", scenario_ids
+
+        solution_dicts = [solution_container.get_solutions_by_scenario_index(x) for x in scenario_ids]
+        results = [solution[self.algorithm_id][exec_id] for solution in solution_dicts for exec_id in exec_ids_to_consider]
+        return results
+
+
     def plot_single_boxplot_general(self, metric_specification, outer_axis,
                                     inner_axis,
                                     filter_specifications=None):
@@ -637,16 +721,29 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
 
         for outer_index, outer_val in enumerate(outer_axis_parameters):
             # all scenario indices which has x_val as xaxis parameter (e.g. node_resource_factor = 0.5
-            scenario_ids_matching_x_axis = lookup_scenarios_having_specific_values(spd, path_outer_axis, outer_val)
+
+            if path_outer_axis[-1][:7] != "latency":
+                scenario_ids_matching_x_axis = lookup_scenarios_having_specific_values(spd, path_outer_axis, outer_val)
+            else:
+                scenario_ids_matching_x_axis = self.all_scenario_ids
+                # if self.heatmap_plot_type not in [HeatmapPlotType.LatencyStudy, HeatmapPlotType.ComparisonLatencyBaseline] \
+
             for inner_index, inner_val in enumerate(inner_axis_parameters):
-                scenario_ids_matching_y_axis = lookup_scenarios_having_specific_values(spd, path_inner_axis, inner_val)
+                if path_inner_axis[-1][:7] != "latency":
+                    scenario_ids_matching_y_axis = lookup_scenarios_having_specific_values(spd, path_inner_axis, inner_val)
+                else:
+                    scenario_ids_matching_y_axis = self.all_scenario_ids
+                # if self.heatmap_plot_type not in [HeatmapPlotType.LatencyStudy, HeatmapPlotType.ComparisonLatencyBaseline] \
+                #     else set([i for i in range(len(self.scenario_solution_storage.algorithm_scenario_solution_dictionary[self.algorithm_id]))])
 
                 filter_indices = self._obtain_scenarios_based_on_filters(filter_specifications)
                 scenario_ids_to_consider = (scenario_ids_matching_x_axis &
                                             scenario_ids_matching_y_axis &
                                             filter_indices) - self.forbidden_scenario_ids
 
-                solutions = self._lookup_solutions(scenario_ids_to_consider)
+                solutions = self._lookup_solutions_by_execution(scenario_ids_to_consider,
+                                                                outer_axis['x_axis_parameter'], outer_val,
+                                                                inner_axis['x_axis_parameter'], inner_val)
 
                 # for solution in solutions:
                 #     print solution
@@ -675,7 +772,7 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
             solution_count_string = "between {} and {} values per square".format(min_number_of_observed_values,
                                                                                  max_number_of_observed_values)
 
-        fig, ax = plt.subplots(figsize=(4, 3.5))
+        fig, ax = plt.subplots(figsize=FIGSIZE)
         if self.paper_mode:
             ax.set_title(metric_specification["name"], fontsize=PLOT_TITLE_FONTSIZE)
         else:
@@ -706,6 +803,10 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
                 pos += 0.6
                 color = cmap(1.0 - (1 + float(inner_index)) / len(inner_axis_parameters))
                 colors.append(color)
+
+                if inner_val == 'no latencies':
+                    inner_val = 'baseline'
+
                 labels[inner_val] = (str(inner_val), color)
             x_ticks.append(group_start_pos + 0.5 * (pos - group_start_pos) - 0.5 * BOX_SEPARATION_WITHIN_GROUP)
             pos += BOX_SEPARATION_BETWEEN_GROUPS
@@ -790,6 +891,128 @@ class RuntimeBoxplotPlotter(AbstractPlotter):
         plt.close(fig)
 
 
+class RuntimeBoxplotPlotter_LatencyStudy(RuntimeBoxplotPlotter):
+    def __init__(self,
+                 output_path,
+                 output_filetype,
+                 scenario_solution_storage,
+                 algorithm_id,
+                 filter_execution_params=None,
+                 baseline_solution_storage=None,
+                 metric_specifications=global_metric_specifications,
+                 list_of_outer_axes_specifications=boxplot_outer_axes_specifications,
+                 list_of_inner_axes_specifications=boxplot_inner_axes_specifications,
+                 algorithm_variant_to_be_considered="rr_seplp_ALL",
+                 show_plot=False,
+                 save_plot=True,
+                 overwrite_existing_files=False,
+                 forbidden_scenario_ids=None,
+                 paper_mode=True
+                 ):
+        super(RuntimeBoxplotPlotter_LatencyStudy, self).__init__(output_path, output_filetype, scenario_solution_storage,
+                                                    algorithm_id, 0, filter_execution_params, metric_specifications, list_of_outer_axes_specifications,
+                                                    list_of_inner_axes_specifications, algorithm_variant_to_be_considered, show_plot, save_plot,
+                                                    overwrite_existing_files, forbidden_scenario_ids, paper_mode)
+
+        self.baseline_solution_storage = baseline_solution_storage
+        if baseline_solution_storage is not None:
+            self.scenarioparameter_room['latency_approx'][0]['latency_approximation_type'].append('no latencies')
+
+        self.exec_id_lookup = self.scenario_solution_storage.execution_parameter_container.reverse_lookup[algorithm_id][
+            'ALGORITHM_PARAMETERS']
+
+        self.execution_id_filter = self.scenario_solution_storage.execution_parameter_container.get_execution_ids(ALG_ID=algorithm_id)
+
+        if filter_execution_params is not None:
+            for key, value in filter_execution_params.iteritems():
+                try:
+                    filter_key = self.exec_id_lookup[key][value]
+                    self.execution_id_filter = self.execution_id_filter & filter_key
+                except:
+                    print "Key Error\n", self.exec_id_lookup[key]
+                    exit(1)
+
+        print "Using Exec ID filter: ", self.execution_id_filter
+
+
+
+    def _lookup_solutions_by_execution(self, scenario_ids, x_key, x_val, y_key, y_val, solution_container=None):
+
+        print x_key, " : ", x_val, "   &   ", y_key , " :  ", y_val
+
+        if self.baseline_solution_storage is not None:
+            if x_key == "latency_approximation_type":
+
+                path_y_axis, _ = extract_parameter_range(self.scenarioparameter_room, y_key)
+
+                if y_key[:7] != "latency":
+                    y_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_y_axis, y_val)
+                else:
+                    y_axis_scenarios = self.all_scenario_ids
+
+                scenario_ids = scenario_ids & y_axis_scenarios
+
+                solution_dicts_baseline = [self.baseline_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                if x_val == "no latencies":
+                    return [x[self.algorithm_id][self.execution_id] for x in solution_dicts_baseline]
+                # elif self.is_comparison:
+                #     solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) \
+                #                       for x in scenario_ids]
+                #
+                #     y_axis_exec_ids = self.exec_id_lookup.get(y_key, {}).get(y_val, self.execution_id_filter)
+                #     x_axis_exec_ids = self.exec_id_lookup.get(x_key, {}).get(x_val, self.execution_id_filter)
+                #     exec_ids_to_consider = y_axis_exec_ids & x_axis_exec_ids & self.execution_id_filter
+                #
+                #     print "   Using Exec_IDS: ", exec_ids_to_consider
+                #     print "   Using Scenarios: ", scenario_ids
+                #
+                #     return [(x[self.algorithm_id][self.execution_id], y[self.algorithm_id][exec_id]) \
+                #               for (x, y) in zip(solution_dicts_baseline, solution_dicts) \
+                #               for exec_id in exec_ids_to_consider]
+
+            elif y_key == "latency_approximation_type":
+
+                path_x_axis, _ = extract_parameter_range(self.scenarioparameter_room, x_key)
+
+                if x_key[:7] != "latency":
+                    x_axis_scenarios = lookup_scenarios_having_specific_values(self.scenario_parameter_dict, path_x_axis, x_val)
+                else:
+                    x_axis_scenarios = self.all_scenario_ids
+                scenario_ids = scenario_ids & x_axis_scenarios
+
+                solution_dicts_baseline = [self.baseline_solution_storage.get_solutions_by_scenario_index(x) for x in scenario_ids]
+
+                if y_val == "no latencies":
+                    return [x[self.algorithm_id][self.execution_id] for x in solution_dicts_baseline]
+                # elif self.is_comparison:
+                #
+                #     solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) \
+                #                       for x in scenario_ids]
+                #
+                #
+                #     y_axis_exec_ids = self.exec_id_lookup.get(y_key, {}).get(y_val, self.execution_id_filter)
+                #     x_axis_exec_ids = self.exec_id_lookup.get(x_key, {}).get(x_val, self.execution_id_filter)
+                #     exec_ids_to_consider = y_axis_exec_ids & x_axis_exec_ids & self.execution_id_filter
+                #
+                #     print "   Using Exec_IDS: ", exec_ids_to_consider
+                #     print "   Using Scenarios: ", scenario_ids
+                #
+                #     return [(y[self.algorithm_id][exec_id], x[self.algorithm_id][self.execution_id]) \
+                #               for (x, y) in zip(solution_dicts_baseline, solution_dicts) \
+                #               for exec_id in exec_ids_to_consider]
+
+                    # solution_dicts = [self.scenario_solution_storage.get_solutions_by_scenario_index(x) for x in
+                    #                   scenario_ids]
+                    # result = [x[self.algorithm_id][self.execution_id] for x in solution_dicts]
+                    # return zip(result_baseline, result)
+
+
+        return super(RuntimeBoxplotPlotter_LatencyStudy, self)._lookup_solutions_by_execution(scenario_ids,
+                                                      x_key, x_val, y_key, y_val, self.scenario_solution_storage)
+
+
+
 def _construct_filter_specs(scenario_parameter_space_dict, parameter_filter_keys, maxdepth=3):
     parameter_value_dic = dict()
     for parameter in parameter_filter_keys:
@@ -871,6 +1094,81 @@ def evaluate_randround_runtimes(dc_randround_seplp_dynvmp,
         scenario_solution_storage=dc_randround_seplp_dynvmp,
         algorithm_id=randround_seplp_algorithm_id,
         execution_id=randround_seplp_execution_id,
+        show_plot=show_plot,
+        save_plot=save_plot,
+        overwrite_existing_files=overwrite_existing_files,
+        paper_mode=papermode,
+    )
+
+    plotters.append(boxplotter_plotter)
+
+    for filter_spec in filter_specs:
+        for plotter in plotters:
+            plotter.plot_figure(filter_spec)
+
+def evaluate_randround_runtimes_latency_study(dc_randround_seplp_dynvmp,
+                                randround_seplp_algorithm_id,
+                                dc_baseline=None,
+                                exclude_generation_parameters=None,
+                                parameter_filter_keys=None,
+                                forbidden_scenario_ids=None,
+                                show_plot=False,
+                                save_plot=True,
+                                overwrite_existing_files=True,
+                                papermode=True,
+                                maxdepthfilter=2,
+                                output_path="./",
+                                output_filetype="png",
+                              filter_exec_params=None):
+    if forbidden_scenario_ids is None:
+        forbidden_scenario_ids = set()
+
+    if exclude_generation_parameters is not None:
+        for key, values_to_exclude in exclude_generation_parameters.iteritems():
+            parameter_filter_path, parameter_values = extract_parameter_range(
+                dc_randround_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room, key)
+
+            parameter_dicts_vine = lookup_scenario_parameter_room_dicts_on_path(
+                dc_randround_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
+            parameter_dicts_randround = lookup_scenario_parameter_room_dicts_on_path(
+                dc_randround_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room, parameter_filter_path)
+
+            for value_to_exclude in values_to_exclude:
+
+                if value_to_exclude not in parameter_values:
+                    raise RuntimeError("The value {} is not contained in the list of parameter values {} for key {}".format(
+                        value_to_exclude, parameter_values, key
+                    ))
+
+                # add respective scenario ids to the set of forbidden scenario ids
+                forbidden_scenario_ids.update(set(lookup_scenarios_having_specific_values(
+                    dc_randround_seplp_dynvmp.scenario_parameter_container.scenario_parameter_dict, parameter_filter_path, value_to_exclude)))
+
+            # remove the respective values from the scenario parameter room such that these are not considered when
+            # constructing e.g. axes
+            parameter_dicts_vine[-1][key] = [value for value in parameter_dicts_vine[-1][key] if
+                                             value not in values_to_exclude]
+            parameter_dicts_randround[-1][key] = [value for value in parameter_dicts_randround[-1][key] if
+                                                  value not in values_to_exclude]
+
+    if parameter_filter_keys is not None:
+        filter_specs = _construct_filter_specs(dc_randround_seplp_dynvmp.scenario_parameter_container.scenarioparameter_room,
+                                               parameter_filter_keys,
+                                               maxdepth=maxdepthfilter)
+    else:
+        filter_specs = [None]
+
+    plotters = []
+
+    boxplotter_plotter = RuntimeBoxplotPlotter_LatencyStudy(
+        output_path=output_path,
+        output_filetype=output_filetype,
+        scenario_solution_storage=dc_randround_seplp_dynvmp,
+        baseline_solution_storage=dc_baseline,
+        filter_execution_params=filter_exec_params,
+        list_of_outer_axes_specifications=boxplot_outer_axes_specifications_lat,
+        list_of_inner_axes_specifications=boxplot_inner_axes_specifications_lat,
+        algorithm_id=randround_seplp_algorithm_id,
         show_plot=show_plot,
         save_plot=save_plot,
         overwrite_existing_files=overwrite_existing_files,
