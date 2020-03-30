@@ -31,6 +31,7 @@ from itertools import combinations, product
 from time import gmtime, strftime
 
 import matplotlib
+matplotlib.use('TkAgg')
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
@@ -268,7 +269,7 @@ boxplot_axes_specification_requests_treewidth = dict(
 boxplot_axes_specification_requests_num_req = dict(
     x_axis_parameter="number_of_requests",
     x_axis_title="Number of Requests",
-    x_axis_title_short="#req.",
+    x_axis_title_short="NO_REQ",
 )
 
 boxplot_outer_axes_specifications = (

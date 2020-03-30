@@ -39,6 +39,7 @@ except ImportError:
     import pickle
 
 import matplotlib
+matplotlib.use('TkAgg')
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.patheffects as PathEffects
